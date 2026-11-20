@@ -46,3 +46,6 @@ body{font-size:14px;line-height:1.45;background:#fcfaf6}.wrap{width:calc(100% - 
 .live-detail img { width: 100%; height: auto; }
 .live-detail p { white-space: pre-line; }
 .live-detail a { display: block; margin-block: .55rem; }
+.header a.profile-chip { text-decoration: none; min-height: 44px; }
+.header a.profile-chip:hover { background: var(--ivory); }
+.header a.profile-chip strong,.header a.profile-chip small { white-space: nowrap; }
