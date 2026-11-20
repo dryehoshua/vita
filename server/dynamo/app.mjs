@@ -1,3 +1,4 @@
+import {registrationOtp} from './registration-otp.mjs';
 import {mountAdventures} from './adventures.mjs';
 import {mountAnalytics} from './analytics.mjs';
 import {mountLoyalty} from './loyalty.mjs';
@@ -16,7 +17,21 @@ export async function createDynamoApp({store:provided,table='LaVitaLocal',endpoi
  for(const dir of ['mail','avatars'])mkdirSync(join(dataDir,dir),{recursive:true,mode:0o700});
  const fail=(s,m)=>{throw Object.assign(Error(m),{status:s});},txt=(v,max=120)=>{if(typeof v!=='string'||!v.trim()||v.length>max)fail(400,'Invalid input');return v.trim();},email=v=>{v=txt(v,254).toLowerCase();if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v))fail(400,'Invalid email');return v;},password=v=>{if(typeof v!=='string'||v.length<12||v.length>128)fail(400,'Password requires 12–128 characters');return v;};
  const audit=async(actor,action,subject)=>{const id=randomUUID();await store.put('Audit',id,{id,actor,action,subject,created_at:now()});};
- const mail=async(u,purpose)=>{const code=token(),h=digest(code);await store.put('Tokens',h,{hash:h,user_id:u.id,purpose,expires:Date.now()+1800000});const url=purpose==='verify'?`${origin}/api/auth/verify?token=${code}`:`${origin}/cuenta?flow=recovery&token=${code}`;if(delivery)await delivery.send({to:u.email,purpose,url});else if(local)writeFileSync(join(dataDir,'mail',Date.now()+'-'+randomUUID()+'.json'),JSON.stringify({to:u.email,purpose,url}),{mode:0o600});else fail(503,'Email delivery unavailable');};
+ const otp=registrationOtp(store,dataDir);
+ const mail=async(u,purpose)=>{
+  let otpCode=null,url=null;
+  if(purpose==='verify'){
+   otpCode=await otp.issue(u.id);
+   if(!otpCode)return;
+  }else{
+   const raw=token(),h=digest(raw);
+   await store.put('Tokens',h,{hash:h,user_id:u.id,purpose,expires:Date.now()+1800000});
+   url=`${origin}/cuenta?flow=recovery&token=${raw}`;
+  }
+  if(delivery)await delivery.send({to:u.email,purpose,url,otpCode});
+  else if(local)writeFileSync(join(dataDir,'mail',Date.now()+'-'+randomUUID()+'.json'),JSON.stringify({to:u.email,purpose,url,code:otpCode}),{mode:0o600});
+  else fail(503,'Email delivery unavailable');
+ };
  const cookie={httpOnly:true,sameSite:'strict',secure:origin.startsWith('https:'),path:'/'};
  app.disable('x-powered-by');
  if(!local&&!gatewayKey)throw Error('Public-origin pilot requires a private gateway key');
@@ -30,7 +45,20 @@ export async function createDynamoApp({store:provided,table='LaVitaLocal',endpoi
  const owns=async(req,org)=>{const m=await store.get('Memberships',org+':'+req.user.id);return m?.active&&m.role==='owner';};
  const authLimit=rateLimit({windowMs:900000,limit:30,standardHeaders:true,legacyHeaders:false});
  app.post('/api/auth/signup',authLimit,async(req,res)=>{if(!local&&!delivery)fail(503,'Registration not enabled');const e=email(req.body.email),p=password(req.body.password),name=txt(req.body.name,60),hash=await hashPassword(p),existing=await store.get('Emails',e);if(!existing){const id=randomUUID();await store.transaction(async tx=>{if(await tx.get('Emails',e))fail(409,'Account exists');await tx.put('Emails',e,{id});await tx.put('Users',id,{id,email:e,password:hash,verified:false,status:'active',roles:[],session_version:0,created_at:now()});await tx.put('Profiles',id,{id,display_name:name,residence:'unspecified',language:'es',avatar_path:null});});await mail({id,email:e},'verify');}else{const u=await store.get('Users',existing.id);if(u&&!u.verified&&u.status==='active')await mail(u,'verify');}res.json({ok:true});});
- app.get('/api/auth/verify',async(req,res)=>{const h=digest(String(req.query.token||''));await store.transaction(async tx=>{const t=await tx.get('Tokens',h);if(!t||t.purpose!=='verify'||t.expires<Date.now())fail(400,'Invalid verification link');const u=await tx.get('Users',t.user_id);await tx.put('Users',u.id,{...u,verified:true});await tx.remove('Tokens',h);});res.redirect('/cuenta?verified=1');});
+ app.post('/api/auth/resend-code',authLimit,async(req,res)=>{
+  if(!local&&!delivery)fail(503,'Registration not enabled');
+  const e=email(req.body.email),index=await store.get('Emails',e);
+  const user=index&&await store.get('Users',index.id);
+  if(user&&!user.verified&&user.status==='active')await mail(user,'verify');
+  res.json({ok:true});
+ });
+ app.post('/api/auth/verify-code',authLimit,async(req,res)=>{
+  if(!local&&!delivery)fail(503,'Registration not enabled');
+  const e=email(req.body.email),index=await store.get('Emails',e);
+  await otp.verify(index?.id,req.body.code,await hashPassword(password(req.body.password)));
+  res.json({ok:true});
+ });
+ app.get('/api/auth/verify',async(req,res)=>{const h=digest(String(req.query.token||''));await store.transaction(async tx=>{const t=await tx.get('Tokens',h);if(!t||t.purpose!=='verify'||t.expires<Date.now())fail(400,'Invalid verification link');const u=await tx.get('Users',t.user_id);if(!u||u.verified||u.status!=='active')fail(400,'Invalid verification link');await tx.put('Users',u.id,{...u,verified:true});await tx.remove('RegistrationCodes',u.id);await tx.remove('Tokens',h);});res.redirect('/cuenta?verified=1');});
  app.post('/api/auth/login',authLimit,async(req,res)=>{const e=email(req.body.email),p=password(req.body.password),index=await store.get('Emails',e),u=index?await store.get('Users',index.id):null;const valid=await verifyPassword(p,u?.password||'0'.repeat(32)+':'+'0'.repeat(128));if(!u||!valid)fail(401,'Invalid login');if(!u.verified)fail(403,'Email not confirmed');if(u.status!=='active')fail(403,'Account unavailable');const raw=token(),h=digest(raw);await store.transaction(async tx=>{const current=await tx.get('Users',u.id);if(current.password!==u.password||current.status!=='active')fail(409,'Account changed');await tx.put('Sessions',h,{hash:h,user_id:u.id,session_version:u.session_version,expires:Date.now()+28800000,aal2:0});if(req.session)await tx.remove('Sessions',req.session.hash);});res.cookie('vita_session',raw,{...cookie,maxAge:28800000}).json({user:{id:u.id,email:u.email}});});
  app.post('/api/auth/logout',async(req,res)=>{if(req.session)await store.remove('Sessions',req.session.hash);res.clearCookie('vita_session',cookie).json({ok:true});});
  app.get('/api/auth/me',(req,res)=>res.json({user:req.user?{id:req.user.id,email:req.user.email,verified:req.user.verified}:null}));
@@ -86,7 +114,7 @@ export async function createDynamoApp({store:provided,table='LaVitaLocal',endpoi
   res.json({ok:true});
  });
  app.get('/api/admin/organizations',authenticated,async(req,res)=>{admin(req);res.json({data:await store.list('Organizations')});});
- app.get('/dev/mail',(req,res)=>{if(!local||['cf-ray','cf-connecting-ip','forwarded','x-forwarded-for'].some(h=>req.headers[h]))return res.sendStatus(404);const mails=readdirSync(join(dataDir,'mail')).sort().reverse().slice(0,20).map(f=>JSON.parse(readFileSync(join(dataDir,'mail',f))));res.type('html').send('<!doctype html><html lang="es"><meta name="viewport" content="width=device-width"><link rel="stylesheet" href="/account.css"><main><h1>Buzón local / Local mailbox</h1>'+mails.map(m=>`<section class="panel"><b>${escapeHTML(m.to)}</b><p>${escapeHTML(m.purpose)}</p><a href="${escapeHTML(m.url)}">Abrir / Open</a></section>`).join('')+'<a href="/cuenta">Volver / Back</a></main></html>');});
+ app.get('/dev/mail',(req,res)=>{if(!local||['cf-ray','cf-connecting-ip','forwarded','x-forwarded-for'].some(h=>req.headers[h]))return res.sendStatus(404);const mails=readdirSync(join(dataDir,'mail')).sort().reverse().slice(0,20).map(f=>JSON.parse(readFileSync(join(dataDir,'mail',f))));res.type('html').send('<!doctype html><html lang="es"><meta name="viewport" content="width=device-width"><link rel="stylesheet" href="/account.css"><main><h1>Buzón local / Local mailbox</h1>'+mails.map(m=>`<section class="panel"><b>${escapeHTML(m.to)}</b><p>${escapeHTML(m.purpose)}</p>${m.code?`<p>Código de verificación: <strong>${escapeHTML(m.code)}</strong></p>`:m.url?`<a href="${escapeHTML(m.url)}">Abrir / Open</a>`:''}</section>`).join('')+'<a href="/cuenta">Volver / Back</a></main></html>');});
  mountAnalytics(app,store,local);
  mountContent(app,{store,authenticated,isAdmin,dataDir});
  mountLoyalty(app,{store,authenticated,isAdmin});

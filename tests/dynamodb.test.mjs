@@ -9,7 +9,7 @@ import {createDynamoApp} from '../server/dynamo/app.mjs';
 import {otp} from '../server/security.mjs';
 let store,server,dir,alice,bob,admin;const origin='http://127.0.0.1:18945',table='VitaTest'+Date.now(),password='test-only-long-password';
 async function api(path,body,cookie,method='POST'){const r=await fetch(origin+path,{method,headers:{Origin:origin,...(body?{'Content-Type':'application/json'}:{}),...(cookie?{Cookie:cookie}:{})},...(body?{body:JSON.stringify(body)}:{})});return {status:r.status,body:await r.json(),cookie:r.headers.get('set-cookie')?.split(';')[0]};}
-async function signup(email){await api('/api/auth/signup',{email,password,name:email});const m=readdirSync(join(dir,'mail')).map(f=>JSON.parse(readFileSync(join(dir,'mail',f)))).find(m=>m.to===email);await fetch(m.url,{redirect:'manual'});return (await api('/api/auth/login',{email,password})).cookie;}
+async function signup(email){await api('/api/auth/signup',{email,password,name:email});const m=readdirSync(join(dir,'mail')).map(f=>JSON.parse(readFileSync(join(dir,'mail',f)))).find(m=>m.to===email);assert.equal((await api('/api/auth/verify-code',{email,code:m.code,password})).status,200);return (await api('/api/auth/login',{email,password})).cookie;}
 const uid=async e=>(await store.get('Emails',e)).id;
 before(async()=>{dir=mkdtempSync(join(tmpdir(),'vita-ddb-'));store=await openStore({table});const x=await createDynamoApp({store,origin,dataDir:dir});server=x.app.listen(18945,'127.0.0.1');await new Promise(r=>server.once('listening',r));alice=await signup('alice@example.test');bob=await signup('bob@example.test');admin=await signup('admin@example.test');const id=await uid('admin@example.test');await store.transaction(async tx=>{const u=await tx.get('Users',id);await tx.put('Users',id,{...u,roles:['admin']});});const f=(await api('/api/mfa/enroll',{},admin)).body.data;await api('/api/mfa/verify',{factorId:f.id,code:otp(f.totp.secret,Math.floor(Date.now()/30000))},admin);});
 after(async()=>{if(server)await new Promise(r=>server.close(r));store?.close();if(table.startsWith('VitaTest')){const c=new DynamoDBClient({endpoint:'http://127.0.0.1:8000',region:'us-east-1',credentials:{accessKeyId:'LOCALONLY',secretAccessKey:'LOCALONLY'}});await c.send(new DeleteTableCommand({TableName:table}));c.destroy();}if(dir)rmSync(dir,{recursive:true,force:true});});
@@ -96,4 +96,28 @@ test('fifty medals include ten combos that count distinct verified places',async
  const completed=awardBadges([...Array.from({length:5},(_,i)=>bar(i)),...Array.from({length:5},(_,i)=>taco(i))],{...options,total:10,categories:2});
  assert.equal(find(completed,'taco-after-dark').state,'unlocked');
  assert.equal(find(completed,'hall-of-vita').state,'locked');
+});
+
+test('signup OTP is one-use and unlocks one welcome bonus without visit credit',async()=>{
+ const email='welcome@example.test';
+ const proposed='a-new-test-password-123';
+ assert.equal((await api('/api/auth/signup',{email,password,name:'Welcome test'})).status,200);
+ const id=await uid(email);
+ const mail=readdirSync(join(dir,'mail')).map(f=>JSON.parse(readFileSync(join(dir,'mail',f)))).find(m=>m.to===email);
+ assert.match(mail.code,/^\d{6}$/);
+ const bad=mail.code==='000000'?'000001':'000000';
+ assert.equal((await api('/api/auth/verify-code',{email,code:bad,password:proposed})).status,400);
+ assert.equal((await store.get('RegistrationCodes',id)).failures,1);
+ assert.equal((await api('/api/auth/verify-code',{email,code:mail.code,password:proposed})).status,200);
+ assert.equal((await api('/api/auth/verify-code',{email,code:mail.code,password:proposed})).status,400);
+ const login=await api('/api/auth/login',{email,password:proposed});
+ assert.equal(login.status,200);
+ const first=await api('/api/client/welcome',{},login.cookie);
+ assert.equal(first.status,200);
+ assert.equal(first.body.data.points,10);
+ assert.equal((await api('/api/client/welcome',{},login.cookie)).body.data.claimed,true);
+ const data=(await api('/api/client/profile',undefined,login.cookie,'GET')).body.data;
+ assert.equal(data.programs.find(p=>p.id===first.body.data.programId).balance,10);
+ assert.equal(data.activity.filter(row=>row.type==='welcome').length,1);
+ assert.equal(data.total,0);
 });

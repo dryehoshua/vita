@@ -1,3 +1,4 @@
+import {welcomeOffer,claimWelcome} from './welcome.mjs';
 import {awardBadges} from './adventure-badges.mjs';
 import {businessVisit} from './visit-context.mjs';
 import {digest} from '../security.mjs';
@@ -40,6 +41,11 @@ async function getVisits(store,id,ledger){
   });
 }
 export function mountAdventures(app,{store,authenticated}){
+ app.post('/api/client/welcome',authenticated,async(req,res)=>{
+  const reward=await claimWelcome(store,req.user.id);
+  if(!reward)fail(409,'Welcome offer unavailable');
+  res.json({data:reward});
+ });
  app.get('/api/client/profile',authenticated,async(req,res)=>{
   const id=req.user.id;
   const [profile,ledger,wallets,programs,rewards]=await Promise.all([
@@ -63,7 +69,7 @@ export function mountAdventures(app,{store,authenticated}){
     rewards:rewards.filter(r=>p.active&&r.active&&r.program_id===p.id).map(({id,title,cost,stock})=>({id,title,cost,stock})),
    })),
    fee,activity:ledger.map(r=>({id:r.id,date:r.created_at,delta:r.delta,reason:r.reason,type:r.type,programId:r.program,program:names.get(r.program)||'La Vita'})).sort((a,b)=>b.date.localeCompare(a.date)),
-   ...places,offers,
+   ...places,offers,welcome:await welcomeOffer(store,id),
   }});
  });
  app.put('/api/client/onboarding',authenticated,async(req,res)=>{

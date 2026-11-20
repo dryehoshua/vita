@@ -6,6 +6,7 @@ const $=s=>document.querySelector(s),app=$('#account-app');
 let lang='es';try{lang=sessionStorage.getItem('lavita-language')==='en'?'en':'es';}catch{}
 const t=(es,en)=>lang==='en'?en:es;
 const client=validConfig(config)?createClient():null;
+let verificationEmail='',verificationPassword='';
 let user=null,profile=null,roles=[],members=[],view='login',recovery=false,activeFactor=null;
 const labels={admin:['Administrador','Administrator'],editor:['Editor','Editor'],writer:['Escritora / autor','Writer'],guide:['Guía turístico','Tour guide'],owner:['Mi negocio','My business'],staff:['Equipo humano','Team'],tourist:['Soy turista','I’m visiting'],cdmx:['Vivo en CDMX','I live in Mexico City'],'roma-condesa':['Vivo en Roma–Condesa','I live in Roma–Condesa'],unspecified:['Prefiero indicarlo después','I’ll choose later'],business:['Negocio','Business'],pending:['Pendiente','Pending'],approved:['Aprobado','Approved'],rejected:['No aprobado','Not approved']};
 const label=k=>labels[k]?t(...labels[k]):k;
@@ -13,16 +14,50 @@ const button=(txt,action,extra='')=>`<button type="button" data-action="${action
 const input=(name,title,type='text',extra='')=>`<label>${title}<input name="${name}" type="${type}" ${extra}></label>`;
 function say(es,en,error=false){$('#notice').textContent=t(es,en);$('#notice').classList.toggle('error',error);}
 function check(result){if(result.error)throw result.error;return result.data;}
-function message(error){const code=error?.code;const msg=String(error?.message||'');if(code==='23505')say('Ya existe una solicitud pendiente o un favorito guardado.','A pending request or saved favorite already exists.',true);else if(msg.includes('Invalid login'))say('Correo o contraseña incorrectos.','Incorrect email or password.',true);else if(msg.includes('Email not confirmed'))say('Confirma tu correo antes de entrar.','Confirm your email before signing in.',true);else if(msg.includes('Verified account required'))say('El integrante necesita crear y verificar su cuenta primero.','The team member must create and verify their account first.',true);else say('No se pudo completar. Revisa tu conexión y vuelve a intentar.','Could not complete. Check your connection and try again.',true);}
+function message(error){const code=error?.code;const msg=String(error?.message||'');if(code==='23505')say('Ya existe una solicitud pendiente o un favorito guardado.','A pending request or saved favorite already exists.',true);else if(msg.includes('Invalid login'))say('Correo o contraseña incorrectos.','Incorrect email or password.',true);else if(msg.includes('Invalid or expired verification code'))say('El código no coincide o venció. Puedes pedir otro.','The code is incorrect or expired. You can request another.',true);else if(msg.includes('Email not confirmed'))say('Confirma tu correo antes de entrar.','Confirm your email before signing in.',true);else if(msg.includes('Verified account required'))say('El integrante necesita crear y verificar su cuenta primero.','The team member must create and verify their account first.',true);else say('No se pudo completar. Revisa tu conexión y vuelve a intentar.','Could not complete. Check your connection and try again.',true);}
 function authView(){
- const signup=view==='signup',reset=view==='reset';
- app.innerHTML=`<section class="panel auth"><h1>${recovery?t('Nueva contraseña','New password'):signup?t('Tu barrio, contigo','Your neighborhood, with you'):reset?t('Recuperar acceso','Recover access'):t('Qué gusto verte','Welcome back')}</h1><p class="muted">${t('Guarda tus lugares y lleva tu cuenta contigo.','Save your places and keep your account with you.')}</p>${!client?`<p class="badge">${t('Servidor local no conectado','Local server not connected')}</p><p>${t('Puedes explorar La Vita. El registro se abrirá al conectar el servicio de cuentas.','You can explore La Vita. Registration will open when the account service is connected.')}</p>`:''}${!recovery?`<div class="tabs">${button(t('Entrar','Sign in'),'login',view==='login'?'aria-current="page"':'')}${config.registrationEnabled===false?'':button(t('Crear cuenta','Sign up'),'signup',signup?'aria-current="page"':'')}</div>`:''}<form id="auth-form"><fieldset ${!client?'disabled':''}>${signup?input('name',t('Nombre','Name'),'text','required maxlength="60" autocomplete="given-name"'):''}${!recovery?input('email',t('Correo','Email'),'email','required autocomplete="email" maxlength="254"'):''}${!reset?input('password',t('Contraseña','Password'),'password',`required minlength="12" maxlength="128" autocomplete="${signup||recovery?'new-password':'current-password'}"`):''}${signup?`<label><input type="checkbox" required> ${t('He leído el','I have read the')} <a href="${esc(config.privacyUrl||'#')}" target="_blank" rel="noopener">${t('aviso de privacidad','privacy notice')}</a></label>`:''}<button class="primary" type="submit">${recovery?t('Guardar contraseña','Save password'):reset?t('Enviar enlace','Send link'):signup?t('Crear mi cuenta','Create my account'):t('Entrar','Sign in')}</button></fieldset></form>${config.localMailbox?`<p><a href="/dev/mail">${t('Buzón local de verificación','Local verification mailbox')}</a></p>`:''}${!recovery&&config.registrationEnabled!==false?button(t('Olvidé mi contraseña','Forgot password'),'reset'):''}${config.registrationEnabled===false?`<p>${t('Piloto: entra con una cuenta de prueba verificada localmente.','Pilot: sign in with a locally verified test account.')}</p>`:''}</section>`;
- $('#auth-form').onsubmit=e=>run(e,async()=>{const f=new FormData(e.target),email=String(f.get('email')||''),password=String(f.get('password')||'');
+ const signup=view==='signup',reset=view==='reset',verify=view==='verify';
+ const mailLink=config.localMailbox?`<a href="/dev/mail" target="_blank" rel="noreferrer">${t('Abrir buzón de pruebas','Open test mailbox')}</a>`:'';
+ const title=recovery?t('Nueva contraseña','New password'):signup?t('Crea tu cuenta','Create your account'):verify?t('Verifica tu correo','Verify your email'):reset?t('Recuperar acceso','Recover access'):t('Qué gusto verte','Welcome back');
+ const info=verify?t('Escribe los 6 dígitos. El código vence en 10 minutos.','Enter the 6 digits. The code expires in 10 minutes.'):signup&&config.localMailbox?t('Al verificar tu cuenta puedes reclamar 10 puntos de bienvenida en el programa de prueba.','Verify your account to claim 10 welcome points in the test program.'):t('Guarda tus lugares y lleva tu cuenta contigo.','Save your places and keep your account with you.');
+ const action=verify?t('Verificar código','Verify code'):signup?t('Crear cuenta','Sign up'):reset?t('Enviar enlace','Send link'):recovery?t('Guardar contraseña','Save password'):t('Entrar','Sign in');
+ app.innerHTML=`<section class="panel auth"><h1>${title}</h1><p class="muted">${info}</p>
+ ${!client?`<p class="badge">${t('Servidor local no conectado','Local server not connected')}</p>`:''}
+ ${!recovery&&!verify?`<div class="tabs">${button(t('Entrar','Sign in'),'login',view==='login'?'aria-current="page"':'')}${config.registrationEnabled===false?'':button(t('Crear cuenta','Sign up'),'signup',signup?'aria-current="page"':'')}</div>`:''}
+ <form id="auth-form"><fieldset ${!client?'disabled':''}>
+ ${signup?input('name',t('Nombre','Name'),'text','required maxlength="60" autocomplete="given-name"'):''}
+ ${!recovery?input('email',t('Correo','Email'),'email','required autocomplete="email" maxlength="254" value="'+esc(verificationEmail)+'"'):''}
+ ${verify?input('code',t('Código de verificación','Verification code'),'text','required inputmode="numeric" autocomplete="one-time-code" minlength="6" maxlength="6" pattern="[0-9]{6}"'):''}
+ ${!reset&&!verify?input('password',t('Contraseña','Password'),'password','required '+(signup||recovery?'minlength="12" autocomplete="new-password"':'autocomplete="current-password"')):''}
+ ${signup||recovery?`<small>${t('Mínimo 12 caracteres.','At least 12 characters.')}</small>`:''}
+ <button class="primary">${action}</button></fieldset></form>
+ ${verify?`<p>${mailLink}</p>${button(t('Reenviar código','Resend code'),'resend-otp')} ${button(t('Volver a entrar','Back to sign in'),'login')}`:''}
+ ${!signup&&!reset&&!verify&&!recovery&&config.registrationEnabled!==false?button(t('Olvidé mi contraseña','Forgot password'),'reset'):''}
+ ${view==='login'&&config.registrationEnabled===false?`<p class="muted">${t('Piloto privado. Entra con una cuenta de prueba verificada.','Private pilot. Sign in with a verified test account.')}</p>`:''}
+ ${reset&&mailLink?`<p>${mailLink}</p>`:''}</section>`;
+ $('#auth-form').onsubmit=e=>run(e,async()=>{
+  const f=new FormData(e.target),email=String(f.get('email')||'').trim(),password=String(f.get('password')||'');
   if(recovery){check(await client.auth.updateUser({password}));recovery=false;await load();say('Contraseña actualizada.','Password updated.');}
-  else if(reset){check(await client.auth.resetPasswordForEmail(email,{redirectTo:config.siteUrl+'/cuenta?flow=recovery'}));say('Si la cuenta existe, encontrarás el enlace en el buzón local (npm run mail:local).','If the account exists, the link is in the local mailbox (npm run mail:local).');}
-  else if(signup){check(await client.auth.signUp({email,password,options:{emailRedirectTo:config.siteUrl+'/cuenta',data:{display_name:String(f.get('name')).trim()}}}));view='login';authView();say('Verificación guardada en el buzón local. Abre el enlace desde npm run mail:local y después entra.','Verification saved to the local mailbox. Open the link from npm run mail:local, then sign in.');}
-  else {check(await client.auth.signInWithPassword({email,password}));await load();if(user&&!roles.some(r=>r.role)&&!members.some(m=>m.active)&&!location.search)location.assign('/perfil');}
+  else if(reset){check(await client.auth.resetPasswordForEmail(email,{redirectTo:config.siteUrl+'/cuenta?flow=recovery'}));say(config.localMailbox?'Revisa el buzón de pruebas para recuperar el acceso.':'Revisa tu correo si la cuenta existe.',config.localMailbox?'Check the test mailbox to recover access.':'Check your email if the account exists.');}
+  else if(signup){check(await client.auth.signUp({email,password,options:{data:{display_name:String(f.get('name')).trim()}}}));verificationEmail=email;verificationPassword=password;view='verify';authView();}
+  else if(verify){
+   const chosen=verificationPassword;
+   check(await client.auth.verifyRegistrationCode({email,code:String(f.get('code')).trim(),password:chosen}));
+   verificationPassword='';
+   verificationEmail=email;view='login';
+   const login=await client.auth.signInWithPassword({email,password:chosen});
+   if(!login.error)location.assign('/perfil');
+   else {authView();say('Correo verificado. Entra para reclamar tu bienvenida.','Email verified. Sign in to claim your welcome offer.');}
+  }else{
+   const result=await client.auth.signInWithPassword({email,password});
+   if(result.error?.message==='Email not confirmed'&&config.registrationEnabled!==false){
+    verificationEmail=email;verificationPassword=password;view='verify';authView();return;
+   }
+   check(result);await load();
+   if(user&&!roles.some(r=>r.role)&&!members.some(m=>m.active)&&(!location.search||new URLSearchParams(location.search).get('view')==='registro'))location.assign('/perfil');
+  }
  });
+
 }
 async function run(event,fn){event?.preventDefault();const form=event?.target?.closest('form'),buttons=form?.querySelectorAll('button');buttons?.forEach(b=>b.disabled=true);try{await fn();}catch(e){message(e);}finally{buttons?.forEach(b=>b.disabled=false);}}
 async function load(){
@@ -68,7 +103,14 @@ async function adminPanel(){
 
 }
 app.addEventListener('click',e=>{const b=e.target.closest('[data-action]');if(!b)return;run(null,async()=>{b.disabled=true;try{const a=b.dataset.action;
- if(['login','signup','reset'].includes(a)){view=a;authView();}
+ if(['login','signup','reset'].includes(a)){verificationPassword='';view=a;say('','');authView();}
+ if(a==='resend-otp'){
+  const form=$('#auth-form'),email=form.elements.email.value.trim();
+  if(!form.elements.email.reportValidity())return;
+  check(await client.auth.resendRegistrationCode(email));
+  verificationEmail=email;
+  say(config.localMailbox?'Revisa el buzón. Puedes pedir un código por minuto.':'Si falta verificar la cuenta, revisa tu correo.',config.localMailbox?'Check the mailbox. You can request one code per minute.':'If your account needs verification, check your email.');
+ }
  if(a==='logout'){check(await client.auth.signOut());user=null;view='login';authView();}
  if(a==='remove-favorite'){check(await client.from('favorites').delete().eq('path',b.dataset.path).eq('user_id',user.id));await dashboard();}
  if(a==='remove-avatar'){check(await client.storage.from('avatars').remove([user.id+'/avatar.webp']));check(await client.from('profiles').update({avatar_path:null}).eq('id',user.id));await load();}
@@ -81,7 +123,9 @@ document.documentElement.lang=lang;$('#explore').textContent=t('Explorar','Explo
 if(client){
  client.auth.onAuthStateChange((event)=>{if(event==='PASSWORD_RECOVERY'){recovery=true;authView();}if(event==='SIGNED_OUT'){user=null;authView();}});
  // Recovery callbacks can arrive before the listener; URL intention is not authorization.
- recovery=new URLSearchParams(location.search).get('flow')==='recovery';
+ const accountParams=new URLSearchParams(location.search);
+ recovery=accountParams.get('flow')==='recovery';
+ if(accountParams.get('view')==='registro'&&config.registrationEnabled!==false)view='signup';
  try{const session=check(await client.auth.getSession()).session;if(session)await load();else authView();}catch(e){authView();message(e);}
 }else authView();
 app.setAttribute('aria-busy','false');

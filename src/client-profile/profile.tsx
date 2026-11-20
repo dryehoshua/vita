@@ -11,6 +11,7 @@ type Offer={id:string,title:string,summary:string,venue:string,minGrade:string,e
 type Data={
  profile:{id:string,name:string,avatar:string|null,residence:string,interests:string[],onboarded:boolean},
  programs:Program[],fee:number,activity:{id:string,date:string,delta:number,reason:string,type?:string,programId:string,program:string}[],
+ welcome?:{points:number,programId:string,program:string,claimed:boolean},
  total:number,categories:number,grade:string,nextGrade:string|null,target:number,badges:Badge[],
  challenges:{id:string,es:string,en:string,count:number,target:number,complete:boolean,month:string,interests:string[]}[],offers:Offer[],
 };
@@ -45,6 +46,8 @@ function App(){
  const [badge,setBadge]=useState<Badge>();
  const [medalGroup,setMedalGroup]=useState('all');
  const [earnedOnly,setEarnedOnly]=useState(false);
+ const [claiming,setClaiming]=useState(false);
+ const [welcomeNotice,setWelcomeNotice]=useState('');
  const [offer,setOffer]=useState<Offer>();
  const t=(es:string,en:string)=>choice(lang,[es,en]);
  async function refresh(){const data:Data=await api('/api/client/profile');setState(data);setError(undefined);return data;}
@@ -73,13 +76,26 @@ function App(){
   <section className="balance-card"><div className="balance-top"><div><span className="eyebrow light">{t('Saldo disponible','Available balance')}</span><strong className="balance-number">{program?.balance||0} <small>pts</small></strong></div><div className="seal">LV</div></div><div className="program-select">{selectProgram}</div></section>
   <button className="btn primary qr-cta" disabled={!program?.active} onClick={()=>go('qr')}><Icon name="qr"/>{t('Mostrar QR','Show QR')}<Icon name="arrow"/></button>
   <div className="split-actions"><button className="btn secondary" disabled={!program?.transferEnabled} onClick={()=>{go('points');setTransfer(true);}}><Icon name="swap"/>{t('Transferir puntos','Transfer points')}</button><button className="btn secondary" onClick={()=>go('points')}><Icon name="receipt"/>{t('Movimientos','Activity')}</button></div>
+  {state.welcome&&!state.welcome.claimed&&<section className="module welcome-offer">
+   <div><span className="eyebrow">{t('Promoción de bienvenida','Welcome offer')}</span><h2>{state.welcome.points} pts {t('de regalo','on us')}</h2><p>{t('Para el programa de prueba. Sin valor comercial.','For the test program. No commercial value.')}</p></div>
+   <button className="btn secondary" disabled={claiming} onClick={async()=>{
+    setClaiming(true);setWelcomeNotice('');
+    try{
+     const claimed=await api('/api/client/welcome',{});
+     setProgramId(claimed.programId);
+     await refresh();
+     setWelcomeNotice(t('¡Tus puntos de bienvenida ya están en tu saldo!','Your welcome points are in your balance.'));
+    }catch(e){setWelcomeNotice(alertCopy(lang,e));}finally{setClaiming(false);}
+   }}>{t('Reclamar','Claim')}</button>
+  </section>}
+  {welcomeNotice&&<p role="status">{welcomeNotice}</p>}
   <section className="module"><div className="section-heading"><h2>My Adventures</h2><button className="text-link" onClick={()=>go('adventures')}>{t('Ver colección','See collection')}</button></div><div className="badge-preview">{(unlocked.length?unlocked:state.badges).slice(0,3).map(b=><button key={b.kind} onClick={()=>setBadge(b)}><BadgeArt kind={b.art||b.kind} state={b.state} collectible={b.kind} exclusive={Boolean(b.requirements)} compact/><span>{b.name}</span></button>)}{next&&<button className="next-badge" onClick={()=>setBadge(next)}><strong>{next.name}</strong><span>{next.count} / {next.required}</span></button>}</div></section>
   <section className="module promo-mini"><div className="section-heading"><h2>Exclusive</h2><button className="text-link" onClick={()=>go('exclusive')}>{t('Ver promociones','See offers')}</button></div>{featured?<button className="promo-strip" onClick={()=>setOffer(featured)}><img src={featured.photos?.[0]?.url||'/assets/la-vita-cafe.png'} alt=""/><span><small>{featured.eligible?t('Disponible','Available'):grade(featured.minGrade)}</small><strong>{featured.title}</strong></span><Icon name="chevron"/></button>:<p className="collection-note">{t('Todavía no hay promociones exclusivas vigentes.','No exclusive offers are currently available.')}</p>}</section>
   <section className="module"><button className="text-link" onClick={()=>setOnboarding(true)}>{t('Mis preferencias','My preferences')}</button></section>
  </>}
  {screen==='points'&&<><div className="title-block"><h1>{t('Puntos','Points')}</h1><p>{selectProgram}</p></div>
   <div className="split-actions"><button className="btn secondary" onClick={()=>setTransfer(false)}>{t('Movimientos','Activity')}</button><button className="btn secondary" disabled={!program?.transferEnabled} onClick={()=>setTransfer(true)}>{t('Transferir','Transfer')}</button></div>
-  {transfer&&program?.transferEnabled?<Transfer key={program.id} lang={lang} program={program} profile={state.profile} fee={state.fee} onComplete={refresh}/>:<section className="module"><h2>{t('Movimientos','Activity')}</h2><button className="text-link" onClick={()=>navigator.clipboard.writeText(state.profile.id).then(e=>{},()=>window.prompt(t('Copia tu identificador','Copy your member ID'),state.profile.id))}>{t('Copiar mi ID para recibir puntos','Copy my ID to receive points')}</button>{!state.activity.some(row=>row.programId===program?.id)&&<p>{t('Aún no hay movimientos.','No transactions yet.')}</p>}{state.activity.filter(row=>row.programId===program?.id).map(row=><div className="movement-row" key={row.id}><span className="movement-icon"><Icon name="receipt"/></span><div><strong>{row.type==='fee'?t('Comisión','Fee'):row.type==='sent'?t('Puntos enviados','Points sent'):row.type==='received'?t('Puntos recibidos','Points received'):row.delta>0?t('Visita validada','Visit verified'):t('Canje o ajuste','Redemption or adjustment')}</strong><small>{new Date(row.date).toLocaleDateString(lang==='es'?'es-MX':'en-US')}</small></div><b className={row.delta>0?'positive':''}>{signed(row.delta)} pts</b></div>)}</section>}
+  {transfer&&program?.transferEnabled?<Transfer key={program.id} lang={lang} program={program} profile={state.profile} fee={state.fee} onComplete={refresh}/>:<section className="module"><h2>{t('Movimientos','Activity')}</h2><button className="text-link" onClick={()=>navigator.clipboard.writeText(state.profile.id).then(e=>{},()=>window.prompt(t('Copia tu identificador','Copy your member ID'),state.profile.id))}>{t('Copiar mi ID para recibir puntos','Copy my ID to receive points')}</button>{!state.activity.some(row=>row.programId===program?.id)&&<p>{t('Aún no hay movimientos.','No transactions yet.')}</p>}{state.activity.filter(row=>row.programId===program?.id).map(row=><div className="movement-row" key={row.id}><span className="movement-icon"><Icon name="receipt"/></span><div><strong>{row.type==='welcome'?t('Bienvenida de prueba','Test welcome bonus'):row.type==='fee'?t('Comisión','Fee'):row.type==='sent'?t('Puntos enviados','Points sent'):row.type==='received'?t('Puntos recibidos','Points received'):row.delta>0?t('Visita validada','Visit verified'):t('Canje o ajuste','Redemption or adjustment')}</strong><small>{new Date(row.date).toLocaleDateString(lang==='es'?'es-MX':'en-US')}</small></div><b className={row.delta>0?'positive':''}>{signed(row.delta)} pts</b></div>)}</section>}
  </>}
  {screen==='adventures'&&<><div className="title-block"><h1>My Adventures</h1><p>{t('Cada visita verificada deja una huella.','Every verified visit leaves a mark.')}</p></div><section className="grade-card">{gradePill}<Progress value={Math.min(100,state.total/state.target*100)} label={gradeText}/></section>
   <div className="collection-heading"><h2>{t('Tu vitrina','Your collection')}</h2><span>{unlocked.length} / {state.badges.length}</span></div>

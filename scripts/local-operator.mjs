@@ -4,7 +4,7 @@ import {randomUUID} from 'node:crypto';
 import {openStore} from '../server/dynamo/store.mjs';
 const dir=resolve(process.env.DATA_DIR||'.local-data'),action=process.argv[2];
 if(action==='mail'){
- for(const f of readdirSync(join(dir,'mail')).sort().slice(-10)){const m=JSON.parse(readFileSync(join(dir,'mail',f),'utf8'));console.log(`${m.to} — ${m.purpose}\n${m.url}\n`);}
+ for(const f of readdirSync(join(dir,'mail')).sort().slice(-10)){const m=JSON.parse(readFileSync(join(dir,'mail',f),'utf8'));console.log(`${m.to} — ${m.purpose}\n${m.code?'Código: '+m.code:m.url}\n`);}
 }else if(action==='admin'){
  const email=process.argv[3]?.toLowerCase();if(!email)throw Error('Usage: npm run admin:local -- email@example.test');
  const store=await openStore({table:process.env.DYNAMODB_TABLE||'LaVitaLocal'});

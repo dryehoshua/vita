@@ -1533,3 +1533,7 @@ section p { overflow-wrap:anywhere; }
 .badge-requirements li { display: flex; justify-content: space-between; gap: 8px; align-items: center; border-top: 1px solid var(--line); text-align: left; }
 .badge-requirements button { min-height: 48px; text-align: left; }
 .badge-requirements span { font-size: 12px; color: var(--muted); white-space: nowrap; }
+
+.welcome-offer { display: flex; align-items: center; gap: 12px; justify-content: space-between; padding: 12px; border: 1px solid var(--brass); border-radius: 12px; }
+.welcome-offer h2 { margin: 4px 0; font-size: 20px; }
+.welcome-offer p { font-size: 12px; margin: 0; }
