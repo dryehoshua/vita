@@ -1,0 +1,121 @@
+SUSTITUIDO: motor vigente DynamoDB Local. Ver dynamodb-local.txt.
+
+OBSOLETO: Supabase descartado por instrucción del usuario. Ver local-y-aws.txt.
+
+LA VITA — BLOQUE 1 PREPARADO, SIN PUBLICAR
+20 noviembre 2026
+
+Estado
+Código local y migración preparados. account-config.js mantiene enabled:false.
+No se ha creado un proyecto Supabase, ejecutado la migración remota, enviado
+correos, registrado usuarios reales, cambiado DNS ni publicado a Cloudflare.
+El sitio público no cambia con este trabajo local.
+
+Incluido
+- /cuenta: entrada, registro, confirmación por correo y recuperación, ES/EN.
+- Perfil con nombre, residencia opcional y foto privada. La imagen se convierte
+  a WebP 512px en el cliente antes de subirla; no se conserva el archivo original.
+- Una identidad y preferencias turista/CDMX/Roma–Condesa; roles adicionales.
+- Solicitudes de negocio, guía y autor, con revisión manual por administrador.
+- Negocio aprobado crea una organización y membresía de propietario.
+- Equipo humano: propietario habilita/suspende una cuenta existente y verificada
+  mediante correo. No asigna contraseñas ajenas, propietarios ni administradores.
+- Cuenta del administrador exige TOTP (aal2) en servidor para aprobar y consultar
+  métricas. Registro público no ofrece admin/editor. Las decisiones se auditan.
+- Métricas de cuentas verificadas, roles activos (no excluyentes), solicitudes
+  pendientes y preferencias declaradas. No se muestran visitas inventadas.
+- Favoritos persistentes: primera integración con La Galletería, enlace Guardar
+  lleva a la cuenta; resto de favoritos locales anteriores no se migra aún.
+- Puntos: lectura privada por programa; saldo nuevo cero; ningún cliente puede
+  insertar, modificar ni canjear. No migra los 1,250 puntos de la demostración.
+- Cabecera de las seis secciones conectada mediante interruptor de configuración.
+  Mientras está apagado conserva la demo; al activarlo abre cuentas y muestra
+  identidad real. Los cupones demo siguen identificados como ficticios.
+
+Activación ordenada (hacer en proyecto de prueba primero)
+1. Crear/usar un proyecto Supabase propiedad del titular. Revisar precios y
+   límites antes de elegir un plan. No se ha contratado nada.
+2. Aplicar supabase/migrations/202611200001_accounts.sql en SQL Editor o CLI.
+   Es una migración única, transaccional; comprobar versión antes de repetir.
+   Si existen tablas con estos nombres, revisar conflictos antes de aplicarla.
+3. Auth: habilitar email/password, confirmación de email obligatoria,
+   contraseña mínima 12 caracteres, recuperación y TOTP. Configurar SMTP propio
+   y verificar remitente/dominio. No usar el remitente de pruebas para público.
+   Revisar rate limits y protección antiabuso del registro antes de lanzarlo.
+4. Configurar Site URL https://roma-condesa.app y redirects exactos:
+   https://roma-condesa.app/cuenta
+   https://roma-condesa.app/cuenta?flow=recovery
+   Para staging añadir solo su origen exacto; nunca comodín abierto.
+   PKCE exige terminar el enlace en el mismo navegador que inició el flujo;
+   probar enlaces desde correo móvil. No añadir OAuth sin configurar callbacks.
+5. Redactar/publicar aviso de privacidad con responsable real, finalidades,
+   contacto y mecanismo de ejercicio de derechos, tratamiento de proveedores
+   y retención. No se inventaron datos legales del operador.
+6. En dist/account-config.js poner supabaseUrl, publishableKey pública,
+   siteUrl y privacyUrl como ruta interna existente. enabled:true SOLO después
+   de probar. Jamás service_role, secret key, contraseñas SMTP o tokens CF.
+   Esta configuración admite las claves modernas sb_publishable_; no legacy JWT.
+7. Crear/verificar la cuenta del propietario del proyecto. Desde SQL Editor,
+   identificar su UUID real y asignar una sola vez:
+   insert into public.global_roles(user_id,role) values ('UUID_REAL','admin');
+   El administrador entra en /cuenta, abre Administración y configura TOTP.
+   Guardar una recuperación operativa fuera de la web; nunca habilitar un
+   botón público para crear administradores. Editor solo se asigna internamente.
+8. Probar en proyecto de staging real dos usuarios, dos negocios, administrador:
+   confirmación, contraseña incorrecta, recuperación, sesión vencida, logout,
+   foto privada, favoritos tras volver a entrar, permisos cruzados, aprobación
+   repetida, suspensión de staff, MFA. SQL local NO sustituye estas pruebas.
+9. Revisar visualmente 360px/768px/escritorio, teclado y lectores de pantalla.
+   No se hizo revisión visual con navegador: herramienta desactivada.
+10. Desplegar dist al Worker existente la-vita-ahora con la configuración probada.
+    No sustituir el Worker, dominio ni correo. Verificar /cuenta (sin .html)
+    y cabeceras HTTP de seguridad después de publicar.
+
+Analítica de visitas y subdominio: PENDIENTES
+El panel de cuentas funciona desde /cuenta con MFA. No se ha configurado
+analytics.roma-condesa.app. Conectar una fuente real de Cloudflare Analytics
+mediante backend/credencial limitada, nunca un token en JavaScript. Crear ruta
+privada del subdominio y redirects de login correspondientes antes de usarlo.
+No se insertó un beacon ni se inventó histórico. La cantidad de perfiles incluye
+cuentas no confirmadas; “cuentas verificadas” usa email_confirmed_at. Preferencias
+cuenta todos los perfiles; roles pueden solaparse. El catálogo no es una cuenta.
+
+Fuera de este bloque (no afirmar terminado)
+- QR transaccional, reglas de acumulación/canje, límites, reversos y antifraude.
+  Falta definir primer negocio/programa, quién financia recompensa y economía.
+- Correo automático de invitación de equipo: hoy cuenta verificada existente.
+- Panel completo de negocio, publicación de recorridos, editor de artículos,
+  moderación de contenido y reservas. Roles preparados; módulos no construidos.
+- Gestión administrativa avanzada de suspensión de cuentas/eliminación/exportación.
+- Analytics de visitas y subdominio, integración real y publicación.
+
+Reproducibilidad
+Node 24. Dependencias fijadas en package-lock.json. npm ci (esbuild tiene binario
+opcional por plataforma); npm run build:accounts; npm test.
+Si npm 12 pide permiso de install script, revisar esbuild antes de aprobar;
+la compilación en este equipo funcionó sin ejecutar su postinstall.
+29 pruebas: PostgreSQL embebido PGlite (políticas/funciones reales de la migración,
+con auth y storage mínimos simulados) + pruebas DOM con proveedor simulado.
+No se probó el servicio de autenticación/SMTP/Storage remoto ni el despliegue.
+
+Seguridad y operación
+RLS es la autoridad; ocultar botones no concede ni quita permisos. Funciones
+privilegiadas fijan search_path, comprueban rol real y no aceptan metadata de
+registro como autorización. Fotos en bucket privado. Datos sin HTML ejecutable.
+SDK Supabase usa almacenamiento local para sesión: no son cookies HttpOnly.
+Mantener CSP, dependencias y controles XSS; para requisitos mayores, planificar
+intermediario de sesión con cookies HttpOnly y protección CSRF.
+Revocar acceso de staff afecta inmediatamente operaciones consultando membresía;
+no hay todavía operaciones de canje. No hay APIs de puntos escribibles por cliente.
+Rollback de UI: enabled:false y desplegar dist anterior. Esto no borra usuarios;
+para detener registros usar también configuración Auth del proveedor. No ejecutar
+DROP ni borrar datos como rollback. Respaldos, exportación/eliminación de datos,
+monitoreo y recuperación MFA se deben definir antes de apertura pública.
+
+Referencias técnicas
+https://supabase.com/docs/guides/auth/passwords
+https://supabase.com/docs/guides/auth/auth-smtp
+https://supabase.com/docs/guides/auth/auth-mfa
+https://supabase.com/docs/reference/javascript/auth-mfa-challengeandverify
+https://supabase.com/docs/guides/database/postgres/row-level-security
+https://supabase.com/docs/guides/storage/security/access-control

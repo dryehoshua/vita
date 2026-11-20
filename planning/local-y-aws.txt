@@ -1,0 +1,90 @@
+SUSTITUIDO: motor vigente DynamoDB Local. Ver dynamodb-local.txt.
+
+LA VITA — LOCAL AHORA, AWS DESPUÉS
+Actualizado: 20 noviembre 2026. Sustituye cuentas-activacion.txt y el diseño Supabase.
+
+PARA USAR AHORA
+Servidor activo: http://localhost:4173/ · Cuenta: http://localhost:4173/cuenta
+Registro: introduce datos de prueba, abre “Buzón local de verificación”, sigue
+el enlace de verify y entra. No se envían mensajes ni correos externos.
+Recuperación de contraseña usa el mismo buzón local. Los enlaces duran 30 minutos.
+El buzón solo se sirve en localhost/127.0.0.1 y rechaza solicitudes de proxy.
+No es un sistema de correo para usuarios públicos ni para acceso desde túnel.
+
+Para reiniciar: doble clic en scripts/start-local.command o, con Node 24 en PATH,
+“npm start”. La terminal debe seguir abierta. Si el puerto está ocupado, no
+arrancar otro servidor. No se instaló servicio automático al iniciar el Mac.
+
+QUÉ FUNCIONA LOCALMENTE
+- SQLite persistente en .local-data/vita.sqlite, fuera de dist y de Git.
+- Registro y verificación local, login, recuperación y cierre de sesión.
+- scrypt con sal por contraseña; sesiones opacas en cookie HttpOnly/SameSite,
+  hashes de token en base de datos, expiración, revocación al recuperar contraseña.
+- Preferencias turista/CDMX/Roma–Condesa, perfil/foto privada, favoritos iniciales.
+- Roles independientes de la elección del usuario, solicitudes revisadas por admin.
+- Negocios aprobados tienen organización y propietario. Equipo mediante cuentas
+  ya verificadas, con suspensión por organización. No envía invitaciones.
+- Administrador con TOTP y elevación de sesión durante 15 minutos.
+- Métricas reales locales de cuentas y páginas vistas (incluye recargas/pruebas;
+  no identifica visitantes únicos ni importa el histórico de Cloudflare).
+- Puntos: saldo inicial cero y lectura por programa. No hay QR ni canje todavía.
+
+ADMIN LOCAL
+Crear y verificar primero una cuenta. El operador puede otorgar admin desde
+la terminal: npm run admin:local -- correo-de-prueba@example.test
+No existe endpoint de autoasignación. Al entrar al panel se configura TOTP.
+No hay administrador de ejemplo ni contraseña predeterminada.
+El script requiere acceso físico al proyecto y registra la asignación en auditoría.
+
+PUENTE VERIFICADO, NO MODIFICADO
+Cloudflare muestra roma-condesa.app/* -> Worker la-vita-ahora.
+La configuración del repo publica dist como assets estáticos al Worker.
+El sitio público no se ha reemplazado por el servidor local.
+El proceso cloudflared encontrado en esta máquina corresponde al servicio
+net.virtualrabbi.tunnel (Virtual Rabbi), no a La Vita. No se tocó su token,
+configuración ni proceso. No se encontró otro túnel de La Vita en ejecución.
+No se creó túnel, DNS, Worker, certificado ni servicio nuevo.
+
+AWS DESCARGADO / PREPARADO
+- AWS CLI v2.41.2 (macOS ARM64), paquete oficial firmado y notarizado verificado.
+  Disponible sin sudo mediante scripts/aws-local.command --version.
+  Binario extraído en .local-tools/aws-cli-expanded/...; no se cambió PATH global.
+- SDK oficial @aws-sdk/client-s3 fijado en package-lock como herramienta futura.
+- Dockerfile multietapa Node24, usuario no root y datos externos en /data.
+- compose.yaml liga solo 127.0.0.1:4173 y volumen persistente independiente.
+- Plantilla CloudFormation en infra/aws/generated/foundation.json: S3 privado,
+  cifrado, versionado, HTTPS; ECR con tags inmutables y escaneo. Retiene datos
+  si se elimina el stack. Generar nuevamente: npm run aws:synth.
+- Sin credenciales AWS, bootstrap, despliegues ni gastos. No se usó Supabase.
+
+LÍMITES DE LA PREPARACIÓN AWS
+La plantilla prepara almacenamiento/registro, NO despliega el backend ni migra
+cuentas. AWS CLI funciona; Docker no está instalado y el contenedor no se ejecutó.
+No se instaló Docker Desktop ni se aceptaron sus términos por el usuario.
+No se instaló SAM: este bloque es un servidor persistente, no funciones Lambda.
+La validación remota de CloudFormation requiere cuenta/región AWS; pendiente.
+
+Antes de producción: decidir ejecución (por ejemplo, una instancia con volumen
+persistente para un piloto, o repositorio SQL migrado a RDS para escalar), costes,
+región, IAM, copias de seguridad, TLS y avisos legales. SQLite NO debe ponerse en
+almacenamiento efímero de Lambda/ECS ni compartirse entre múltiples réplicas.
+Mover fotos a S3 requiere conectar el adaptador y permisos; instalar el SDK no
+migra archivos. Sustituir buzón local por SES/SMTP verificado, activar controles
+antiabuso, definir recuperación MFA y operaciones de borrado/exportación.
+Si se elige Cognito, implementar/verificar el adaptador de identidad; no afirmar
+que estas cuentas locales ya son usuarios de Cognito.
+
+PRUEBAS
+Suite activa: tests/interface.test.mjs, local-server.test.mjs, local-mail.test.mjs.
+HTTP real contra SQLite temporal: separación de usuarios, restricciones de roles,
+aprobaciones atómicas, equipo, TOTP y replay, sesiones y recuperación, favoritos,
+protección de archivos y buzón. Pruebas DOM con proveedor simulado para flujos UI.
+La antigua suite/migración Supabase queda archivada, fuera de ejecución y sin
+conexiones remotas. Se conserva solo como historia del diseño descartado.
+Revisión visual local de registro; no se abrió una cuenta real del titular.
+No se publicó nada. Las sesiones/datos locales son independientes del sitio público.
+
+REFERENCIAS OFICIALES
+https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html
+https://nodejs.org/download/release/latest-v24.x/docs/api/sqlite.html
+https://developers.cloudflare.com/tunnel/get-started/

@@ -1,0 +1,13 @@
+/cuenta
+  Cache-Control: no-store
+  Referrer-Policy: no-referrer
+  X-Content-Type-Options: nosniff
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; img-src 'self' blob: https://*.supabase.co; base-uri 'none'; form-action 'self'; frame-ancestors 'none'
+/cuenta.html
+  Cache-Control: no-store
+  Referrer-Policy: no-referrer
+  X-Content-Type-Options: nosniff
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; img-src 'self' blob: https://*.supabase.co; base-uri 'none'; form-action 'self'; frame-ancestors 'none'
+/account-config.js
+  Cache-Control: no-store
+  X-Content-Type-Options: nosniff

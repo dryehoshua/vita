@@ -1,0 +1,55 @@
+import {test,before,after} from 'node:test';
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import {PGlite} from '@electric-sql/pglite';
+import {safePath,escapeHTML,validConfig,totals,spaces} from '../src/accounts/core.js';
+let db;const alice='00000000-0000-0000-0000-000000000001',bob='00000000-0000-0000-0000-000000000002',admin='00000000-0000-0000-0000-000000000003';
+before(async()=>{
+ db=new PGlite();await db.exec(`create role anon; create role authenticated; create schema auth; create schema storage;
+ create table auth.users(id uuid primary key,email text,email_confirmed_at timestamptz,raw_user_meta_data jsonb default '{}');
+ create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;
+ create function auth.jwt() returns jsonb language sql stable as $$select jsonb_build_object('aal',current_setting('request.jwt.claim.aal',true))$$;
+ grant usage on schema auth,storage,public to authenticated,anon;
+ create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);
+ create table storage.objects(id uuid primary key default gen_random_uuid(),bucket_id text,name text);
+ alter table storage.objects enable row level security;grant select,insert,update,delete on storage.objects to authenticated;`);
+ await db.exec(await readFile('supabase/migrations/202611200001_accounts.sql','utf8'));
+ await db.exec(`insert into auth.users(id,email,email_confirmed_at,raw_user_meta_data) values('${alice}','alice@example.test',now(),'{"display_name":"Alice","role":"admin"}'),('${bob}','bob@example.test',now(),'{}'),('${admin}','admin@example.test',now(),'{}'); insert into public.global_roles values('${admin}','admin');`);
+});
+after(async()=>db?.close());
+async function as(id,sql,aal='aal1',role='authenticated') {await db.exec(`begin;set local role ${role};select set_config('request.jwt.claim.sub','${id}',true);select set_config('request.jwt.claim.aal','${aal}',true);`);try{return await db.query(sql);}finally{await db.exec('rollback');}}
+test('profile is created but untrusted signup role does not grant privileges',async()=>{assert.equal((await db.query(`select display_name from profiles where id='${alice}'`)).rows[0].display_name,'Alice');assert.equal((await as(alice,'select * from global_roles')).rows.length,0);});
+test('anonymous cannot read profiles',async()=>{await assert.rejects(as('',`select * from profiles`,'aal1','anon'));});
+test('account can only read itself',async()=>assert.deepEqual((await as(alice,'select id from profiles')).rows,[{id:alice}]));
+test('cannot alter another profile',async()=>assert.equal((await as(alice,`update profiles set display_name='Changed' where id='${bob}' returning id`)).rows.length,0));
+test('cannot alter profile identity or created date',async()=>{await assert.rejects(as(alice,`update profiles set id='${bob}' where id='${alice}'`));await assert.rejects(as(alice,`update profiles set created_at=now()`));});
+test('invalid preference rejected',async()=>await assert.rejects(as(alice,`update profiles set residence='admin' where id='${alice}'`)));
+test('cannot assign own admin role',async()=>await assert.rejects(as(alice,`insert into global_roles values('${alice}','admin')`)));
+test('cannot forge approved access request',async()=>await assert.rejects(as(alice,`insert into access_requests(user_id,kind,name,status) values('${alice}','business','Cafe','approved')`)));
+test('cannot submit request for another account',async()=>await assert.rejects(as(alice,`insert into access_requests(user_id,kind,name) values('${bob}','writer','Other')`)));
+test('request accepts only public application roles',async()=>await assert.rejects(as(alice,`insert into access_requests(user_id,kind,name) values('${alice}','admin','Admin')`)));
+test('ordinary account and admin without MFA cannot read metrics',async()=>{await assert.rejects(as(alice,'select account_metrics()','aal2'));await assert.rejects(as(admin,'select account_metrics()'));});
+test('admin with MFA sees real verified total',async()=>assert.equal((await as(admin,'select account_metrics() metrics','aal2')).rows[0].metrics.accounts,3));
+test('cannot award or rewrite points',async()=>{await assert.rejects(as(alice,`insert into point_entries(user_id,program,delta,reason,reference) values('${alice}','demo',999,'fake','fake')`));await assert.rejects(as(alice,'update point_entries set delta=999'));});
+test('point ledgers are private',async()=>{await db.exec(`insert into point_entries(user_id,program,delta,reason,reference) values('${bob}','test-only',10,'test','test-ref')`);assert.equal((await as(alice,'select * from point_entries')).rows.length,0);});
+test('avatar cannot reference another account',async()=>await assert.rejects(as(alice,`update profiles set avatar_path='${bob}/avatar.webp' where id='${alice}'`)));
+test('avatar storage cannot write/read another path',async()=>{await assert.rejects(as(alice,`insert into storage.objects(bucket_id,name) values('avatars','${bob}/avatar.webp')`));await db.exec(`insert into storage.objects(bucket_id,name) values('avatars','${bob}/avatar.webp')`);assert.equal((await as(alice,'select * from storage.objects')).rows.length,0);});
+test('avatar storage accepts own path',async()=>assert.equal((await as(alice,`insert into storage.objects(bucket_id,name) values('avatars','${alice}/avatar.webp') returning name`)).rows.length,1));
+test('favorites reject external links and other users',async()=>{await assert.rejects(as(alice,`insert into favorites values('${alice}','//evil.test','x',now())`));await assert.rejects(as(alice,`insert into favorites values('${bob}','/guias','x',now())`));});
+test('business approval is atomic and cannot be repeated',async()=>{
+ const r=(await db.query(`insert into access_requests(user_id,kind,name) values('${alice}','business','Test café') returning id`)).rows[0].id;
+ await assert.rejects(as(alice,`select decide_request('${r}',true)`,'aal2'));
+ await db.exec(`begin;set local role authenticated;select set_config('request.jwt.claim.sub','${admin}',true);select set_config('request.jwt.claim.aal','aal2',true);select decide_request('${r}',true);commit;`);
+ await assert.rejects(as(admin,`select decide_request('${r}',true)`,'aal2'));
+ assert.equal((await db.query(`select count(*)::int n from organizations where name='Test café'`)).rows[0].n,1);
+});
+test('owner manages own staff only; suspension enforced',async()=>{
+ const org=(await db.query(`select organization_id from memberships where user_id='${alice}'`)).rows[0].organization_id;
+ await assert.rejects(as(bob,`select set_team_member('${org}','bob@example.test',true)`));
+ await assert.rejects(as(alice,`select set_team_member('${org}','alice@example.test',false)`));
+ assert.equal((await as(alice,`select set_team_member('${org}','bob@example.test',true)`)).rows.length,1);
+ await db.exec(`insert into memberships values('${org}','${bob}','staff',false)`);
+ assert.equal((await as(bob,`select in_org('${org}') allowed`)).rows[0].allowed,false);
+});
+test('safe URLs, escaping and separate wallets',()=>{for(const url of ['//evil.test','https://evil.test','/../x','/x?secret=1','/x#fragment'])assert.equal(safePath(url),'/');assert.equal(safePath('/lugares/la-galleteria'),'/lugares/la-galleteria');assert.equal(escapeHTML('<img onerror="x">'),'&lt;img onerror=&quot;x&quot;&gt;');assert.deepEqual(totals([{program:'A',delta:5},{program:'B',delta:8},{program:'A',delta:-2}]),{A:3,B:8});assert.deepEqual(spaces([{role:'guide'}],[{role:'owner',active:true},{role:'staff',active:false}]),['guide','owner']);});
+test('configuration fails closed and never accepts service keys',()=>{const c={enabled:true,supabaseUrl:'https://project.supabase.co',publishableKey:'sb_publishable_example',siteUrl:'https://roma-condesa.app',privacyUrl:'/privacidad'};assert.equal(validConfig(c),true);for(const patch of [{enabled:false},{publishableKey:'sb_secret_unsafe'},{privacyUrl:''},{supabaseUrl:'https://evil.test'}])assert.equal(validConfig({...c,...patch}),false);});

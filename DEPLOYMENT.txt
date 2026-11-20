@@ -1,0 +1,75 @@
+ALOJAMIENTO INDEPENDIENTE — CLOUDFlARE
+
+Proyecto: La Vita Roma Condesa
+Worker: la-vita-roma-condesa
+Cuenta: 92a459e385fb4a59cad8dd5fa1923884
+Código publicable: dist/
+Configuración para despliegues futuros con Wrangler: wrangler.jsonc
+
+Este proyecto se mantiene directamente en la cuenta Cloudflare del propietario.
+No publicar nuevas versiones mediante ChatGPT Sites.
+La configuración .openai/hosting.json se conserva únicamente como referencia histórica de la demo anterior.
+
+Despliegue desde el navegador:
+Cloudflare > Workers & Pages > la-vita-roma-condesa > crear nueva versión > cargar dist/.
+También se puede usar Wrangler autenticado en la cuenta del propietario con: npx wrangler deploy
+
+El sitio no tiene llamadas a OpenAI, analítica ni formularios de datos personales. Las ofertas ficticias se guardan solo en sessionStorage. Los enlaces externos son servicios ajenos.
+
+Publicación comprobada: https://la-vita-roma-condesa.doctoryehoshua.workers.dev/
+Versión inicial Cloudflare mostrada en panel: 85d63462, estado Ready.
+La asociación de roma-condesa.app con ChatGPT Sites fue retirada.
+El usuario autorizó retirar los cuatro registros antiguos. Se eliminaron los 2 A anteriores y los 2 TXT de verificación de Sites.
+Cloudflare confirmó roma-condesa.app como dominio Production del Worker la-vita-roma-condesa.
+MX de IONOS comprobados tras el cambio, sin alteraciones.
+Pendiente de comprobación final: emisión/activación del certificado HTTPS de Cloudflare; el dominio ya responde con las IP nuevas en el resolver 1.1.1.1.
+
+Estado tras la aprobación: 4 registros eliminados y verificados ausentes en DNS autoritativo. El dominio raíz aparece conectado a Production en el Worker. La zona figura activa y protegida por Cloudflare.
+SSL/TLS > Edge Certificates: Universal Pending Validation (TXT); la ficha indica: Cloudflare will validate the certificate on your behalf. No action is required. No comprar certificados ni alterar la validación automática. Última prueba HTTPS todavía sin certificado servido.
+
+6 Nov 2026 — Nueva versión pública con cuponera, perfil demo, eventos y dos idiomas.
+Worker activo para el contenido: la-vita-experiencias
+Versión: f75bb046 (100% Ready)
+URL de respaldo: https://la-vita-experiencias.doctoryehoshua.workers.dev/
+Ruta de producción: roma-condesa.app/* -> la-vita-experiencias
+La asociación de dominio original con la-vita-roma-condesa permanece como origen. La ruta nueva tiene prioridad y sirve todos los archivos de dist. No modificar DNS de correo.
+Motivo: el cargador del dashboard permite crear un Worker estático, pero no subir otra carpeta a un nombre existente. Se conserva la publicación original como respaldo y se dirige el dominio a la nueva versión mediante una ruta de Cloudflare. wrangler.jsonc refleja el Worker y la ruta actuales.
+Verificado https://roma-condesa.app/ en navegador: cuponera de 9 tarjetas, 23 planes/lugares, selector Español/English, guardar cupón y simular uso (+50 una sola vez), perfil de 1,300 puntos tras prueba y restablecimiento a 1,250. HTTPS operativo. Evidencia: review/cuponera-publicada.png.
+
+6 Nov 2026 — Vista compacta solicitada por el usuario.
+Worker actual: la-vita-barrio
+Ruta roma-condesa.app/* editada en Workers Routes para servir la-vita-barrio.
+URL de respaldo: https://la-vita-barrio.doctoryehoshua.workers.dev/
+26 registros. Cuponera compacta arriba, 14 palabras clave, búsqueda bilingüe, seis tarjetas por fila en escritorio, puntos discretos en cabecera. Margarita al Pastor de Limantour en la primera tarjeta y primer cupón ficticio. Se añadieron Rosetta y Lardo, con fuentes y fotografías identificadas en more-places.js.
+Verificación en el dominio: búsqueda Baltra en inglés = 1 experience; cupón Limantour guardado y simulado incrementa puntos a 1,300; perfil restablecido a 1,250; sin errores de consola. Evidencia: review/vista-compacta-publicada.png.
+
+PENDIENTE DE PUBLICAR — 6 Nov 2026: banner de tres escenas (Muertos/Condesa/Margarita), resúmenes de dos líneas, filtros y buscador compartidos para cupones y catálogo. Código en dist y paquete review/la-vita-banner-ready.zip. NO se ha cambiado el Worker actual la-vita-barrio. La automatización del navegador dejó de responder antes de subir la versión. Verificación local: 9 cupones por defecto; filtro Spas => 1 cupón Spa Condesa y 1 plan, banner oculto; las tres imágenes del banner se revisaron visualmente. Pendiente terminar comprobación de inglés/caso sin cupones y publicar/verificar el dominio.
+
+PUBLICADO — 6 Nov 2026: versión pendiente completada. Worker la-vita-destacados, versión d5b268ff, 100% Ready; ruta roma-condesa.app/* actualizada desde la-vita-barrio. Verificado en https://roma-condesa.app/: banner editorial, 26 planes, 9 cupones; Spas filtra 1 plan y 1 cupón; buscar Baltra produce 1 plan y estado sin cupones; Hotels en inglés produce 1 experience y cupón Andaz; sin errores de consola. Portada restablecida a español. Evidencia: review/banner-y-filtros-publicados.png. Respaldo: https://la-vita-destacados.doctoryehoshua.workers.dev/. El bloqueo de publicación anterior quedó resuelto.
+
+PUBLICADO — 6 Nov 2026: vista previa social con logo. Worker la-vita-social, versión 15f46cfb Ready, ruta roma-condesa.app/* reasignada desde la-vita-destacados. Metadatos OG/Twitter en HTML inicial; share-la-vita-v1.jpg (1200×630, ~152 KiB), logo PNG 512 e icono Apple PNG 180. Comprobación HTTP con User-Agent facebookexternalhit: raíz 200 text/html, imagen 200 image/jpeg y logo 200 image/png, los tres archivos coinciden byte a byte con dist. No se envió un mensaje ni se comprobó una conversación real en WhatsApp. Evidencia: review/whatsapp-preview-publicada.jpg.
+
+PENDIENTE DE PUBLICAR — 11 Nov 2026: sección independiente /guias (archivo guias.html), navegación portada/guías, 12 perfiles ficticios y 36 experiencias, filtros y tarifas, contacto WhatsApp preparado en ES/EN con números sin asignar. Código y pruebas DOM listos. El intento de navegador respondió “Local browser use is disabled in Work settings”. No se intentó cambiar ese ajuste ni se modificó producción. Revisar visualmente y publicar la carpeta dist cuando el usuario habilite el navegador. Documento: review/guias-ux.md; pruebas: review/guias-validation.txt.
+
+ACTUALIZACIÓN LOCAL — 11 Nov 2026: WhatsApp compartido autorizado 525573513782; ámbito limitado a CDMX/zona metropolitana hasta Teotihuacán. Catálogo de 24 rutas distintas con fuentes primarias y 36 ofertas entre 12 guías. Pestañas Guías/Recorridos y comparación/contacto por ruta. Pruebas DOM aprobadas. Sigue pendiente revisión visual y publicación por navegador desactivado en Work; producción sin cambios.
+
+PUBLICADO — 11 Nov 2026: Worker la-vita-guias, versión f94f941b, 100% Ready. Ruta roma-condesa.app/* actualizada desde la-vita-social. Verificado https://roma-condesa.app/guias: 12 perfiles, 24 recorridos, filtro metropolitano 4 rutas, inglés, ficha de Valeria y mensaje ES/EN al WhatsApp público aprobado 525573513782. Portada enlaza a Guías; vuelta a español. HTTP/curl y coincidencia byte a byte de portada, guias.html y scripts principales. No se enviaron mensajes. Evidencia review/guias-publicadas.jpg. Respaldo https://la-vita-guias.doctoryehoshua.workers.dev/. Bloqueo anterior resuelto.
+
+PUBLICADO — 11 Nov 2026: Worker la-vita-fotos, versión 466443d6, 100% Ready. Ruta roma-condesa.app/* actualizada desde la-vita-guias. 12 retratos fotorrealistas y 10 escenas generadas mediante imagegen, copiados y optimizados en dist/assets/guides (22 JPEG, 6.22 MiB). Fotos rectangulares grandes en tarjetas y fichas; escenas en catálogo y experiencias del guía; identificación IA/Demo ES/EN. Revisión visual local y pública; 22 imágenes y 3 archivos públicos coinciden byte a byte con el código local; pruebas DOM aprobadas, ficha de Mariana con 4 imágenes cargadas y enlace de WhatsApp correcto. Sin errores de consola en la comprobación pública. No se enviaron mensajes. Evidencia review/guias-fotos-publicadas.jpg y review/recorridos-fotos-publicados.jpg. Prompts y origen de archivos: review/imagenes-ia-prompts.md y review/imagenes-ia-manifest.json. Respaldo https://la-vita-fotos.doctoryehoshua.workers.dev/.
+
+PUBLICADO — 11 Nov 2026: Worker la-vita-rutas versión 557dd648 Ready; ruta roma-condesa.app/* reasignada desde la-vita-fotos. Seis imágenes IA específicas nuevas v2: Polanco, Roma-Condesa a pie, Roma fotográfica, UNAM murales, Jardín Botánico UNAM y bosque/lago de Chapultepec. El Castillo conserva su imagen distinta v1. Siete rutas con archivos y hashes distintos. Verificado catálogo público por búsquedas Roma (2 imágenes distintas), UNAM (2), Polanco (1) y Chapultepec (2), y ficha de Nicolás con nuevas imágenes cargadas. Seis JPEG y dos archivos JS públicos coinciden byte a byte con dist. Evidencias review/unam-fotos-diferentes.jpg, roma-fotos-diferentes.jpg, polanco-foto-propia.jpg, chapultepec-fotos-diferentes.jpg. Originales y prompts en review/recorridos-imagenes-v2-manifest.json y recorridos-imagenes-v2-prompts.md.
+
+PUBLICADO — 11 Nov 2026: Worker la-vita-ahora, versión 081f9cc6, 100% Ready. Ruta roma-condesa.app/* reasignada desde la-vita-rutas. /ahora contiene 130 registros de fechas, funciones y temporadas con fuentes, con noviembre y diciembre precargados; 10 recintos. Cambio automático de día/hora CDMX, indicador rojo animado y ES/EN. No se sincronizan nuevos anuncios automáticamente. Verificados localmente calendario, selección de día, búsqueda, idioma y ficha con enlace primario; pruebas de medianoche y estados de horarios aprobadas. Dominio público: enlace desde portada y calendario diciembre funcionan; diez archivos publicados coinciden byte a byte con dist, sin errores ni advertencias de consola en la agenda. Evidencias review/sucediendo-ahora-publicado.jpg y calendario-diciembre-publicado.jpg. Respaldo https://la-vita-ahora.doctoryehoshua.workers.dev/. Worker anterior conservado para reversión.
+
+PUBLICADO — 11 Nov 2026: actualización del Worker existente la-vita-ahora, versión aafe6b86, 100% Ready; mantiene roma-condesa.app/*. Previews de imágenes promocionales de 71 eventos distintos (127/130 registros), 67 JPEG locales y módulo agenda-images.js. Miniaturas compactas sin recortar y ampliación en ficha con atribución/enlace al original. CONFE conserva sus tres fechas sin imagen porque su servidor presenta error de certificado; no se desactivó SSL. Revisión local/publicada de miniaturas, idioma, búsqueda y ficha ampliada; consola sin errores ni advertencias. Evidencias review/agenda-previews-publicados.jpg y agenda-cartel-ampliado-publicado.jpg. Origen, hash y dimensiones en review/agenda-research/image-manifest.json.
+
+PUBLICADO — 11 Nov 2026: Worker la-vita-ahora actualizado a b27b9daf Ready. Filtros rápidos Comida, Entretenimiento, Party, Música, Arte y Todos en /ahora, ES/EN, combinables con buscador/calendario/recinto/zona. Verificación local: Party noviembre 4 funciones, Entretenimiento + Ceniza 4 funciones, Comida sin resultados y restablecimiento; inglés conserva selección. Verificación pública: Party noviembre 4 funciones; vuelta a Ahora/Todos. Tres archivos cambiados coinciden byte a byte con dist. Evidencia review/agenda-filtros-publicados.jpg. No hay eventos food confirmados en la agenda actual.
+
+PUBLICADO — 13 Nov 2026: Worker existente la-vita-ahora actualizado a versión c230bf51, 100% Ready, ruta roma-condesa.app/* conservada. Nueva sección /alojamientos inmediatamente después de Guías en portada, guías y agenda. 30 propiedades reales: 10 hoteles, 10 anuncios Airbnb y 10 hostales. 59 fotografías promocionales locales. Tarifas, descuentos y mínimos de noches ficticios con etiqueta Demo; sin disponibilidad/reservas en vivo. Investigación UX y fuentes en review/alojamientos-research.txt y review/stays-research/. Pruebas locales: pestañas 10/10/10, búsqueda, guardado/retirada, galería, cálculo de estancia y ES/EN. Pruebas públicas: pestañas 10/10/10, departamento con galería 2/2 y fuente, inglés 30 stays, consola sin errores/advertencias, 70 archivos públicos coinciden byte a byte con dist. Evidencia review/alojamientos-publicados.jpg y alojamiento-ficha-publicada.jpg. Versión previa b27b9daf disponible en el mismo Worker para reversión.
+
+2026-11-13: ♥ De paso publicado en Worker la-vita-ahora, versión 92d855d0 Ready. /alojamientos#de-paso. 40 fichas (10 por categoría). 24 archivos nuevos/modificados comprobados byte a byte en dominio público; pruebas UI ES/EN, duración, filtros y galería correctas.
+2026-11-13 - Socialite published to existing Cloudflare Worker la-vita-ahora, version 9807e45b Ready. /socialite and /socialite?seccion=referentes. 20 original bilingual article summaries, 20 real profiles, 40 shareable detail pages, 20 photographs with source credits and individual OG previews. 72 public files verified against local bytes. Public UI: 20 articles/20 profiles, ES/EN, filters, search, saved stories, source links and detail routes checked; no console errors. Screenshots: review/socialite-publicada.jpg and review/socialite-referentes-publicados.jpg.
+
+2026-11-13 - Socialite attribution update: version 51008a15 Ready. Explicit original-article rights notice, original editorial summary label and full-article link naming the source publication, ES/EN. Both modified public files byte-verified. Screenshot review/socialite-derechos-publicados.jpg.
+
+17 noviembre 2026: La Galletería publicada. Versión bdcba050 Ready. /lugares/la-galleteria. Menú 26 conceptos ES/EN, 8 imágenes (2 retoques IA), catálogo integrado. Verificado en navegador público: búsqueda por galleter, acceso a ficha y 26 productos. Verificación adicional por urllib bloqueada por HTTP 403; no se afirma coincidencia byte a byte.

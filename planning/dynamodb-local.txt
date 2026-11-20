@@ -1,0 +1,86 @@
+LA VITA — DYNAMODB LOCAL, 20 NOVIEMBRE 2026
+Decisión vigente: DynamoDB Local. Sustituye SQLite/PostgreSQL/Supabase en runtime.
+Todo el backend y los datos de cuentas permanecen en esta computadora.
+
+EN EJECUCIÓN
+DynamoDB Local oficial 3.3.2 + Amazon Corretto 21, descargas oficiales.
+Checksum SHA256 de DynamoDB verificado. JAR guardado en .local-tools/dynamodb.
+SDK oficial AWS v3: @aws-sdk/client-dynamodb y @aws-sdk/lib-dynamodb.
+Listener restringido explícitamente a 127.0.0.1:8000 mediante wrapper Java;
+la CLI oficial no ofrece bind-address. El wrapper falla si cambia la API embebida.
+Telemetría de DynamoDB desactivada. Datos persistentes: .local-data/dynamodb.
+La base utiliza internamente archivos propios de DynamoDB Local; el backend
+se comunica solo con la API DynamoDB, no abre esos archivos como SQLite.
+
+Backend activo: http://localhost:4173/cuenta. /panel contiene los espacios.
+Inicio DB: scripts/start-dynamodb.command; después scripts/start-local.command.
+No se instaló arranque automático del Mac. Ambos procesos deben permanecer vivos.
+Buzón de pruebas: /dev/mail. Datos locales sin envío de correo externo.
+Sin cuenta admin por defecto. Crear/verificar cuenta de prueba primero; luego
+npm run admin:local -- correo@example.test asigna admin en DYNAMODB (no SQLite).
+Administrador exige TOTP en Mi cuenta.
+
+MIGRACIÓN
+scripts/migrate-dynamodb.mjs lee fuente SQLite en modo solo lectura y crea backup.
+La fuente tenía 0 cuentas; se preservaron registros existentes compatibles.
+Se guarda marcador Migration/sqlite-v1. Se rechaza volver a ejecutarla o fusionar
+sobre usuarios existentes. No se borró ni convirtió ningún punto demo.
+Original: .local-data/vita.sqlite; backup fechado en .local-data/backups.
+Los módulos SQL anteriores siguen como historia/referencia; server/start.mjs
+carga únicamente server/dynamo/app.mjs y los módulos DynamoDB.
+
+IMPLEMENTADO CON DYNAMODB NATIVO
+Cuentas, índices de correo únicos, perfiles, roles, sesiones, MFA, verificación,
+recuperación con invalidación de sesiones, favoritos, membresías y solicitudes.
+Borradores business/guide/tour/article, menú/servicios, itinerarios y honorarios,
+fotos locales privadas, versiones aprobadas independientes, revisión y publicación.
+Área de servicio de guías limitada a CDMX/metropolitana/Teotihuacán.
+Programas/recompensas inicialmente inactivos. QR opaco de 5 minutos, inspección,
+validación por equipo activo, límite diario, referencias idempotentes, saldo y
+stock atómicos, reversos compensatorios. No hay programa comercial activado.
+Los visitantes no pueden darse puntos ni asignarse roles. El editor no se aprueba.
+El QR requiere pegar/escanear con lector externo; cámara integrada aún pendiente.
+Contenido aprobado disponible en /api/public/content; integrar cada nuevo
+contenido en directorios públicos existentes sigue pendiente.
+
+MODELO
+Tabla LaVitaLocal con clave compuesta pk/sk. Cada entidad es un item independiente;
+no se guarda la base entera como un único documento. Familias Users, Emails,
+Profiles, Sessions, Tokens, Memberships, Programs, Rewards, Codes, Operations,
+Wallets#user, Ledger#user, Documents, Media, Revisions#document, etc.
+Lecturas consistentes; escrituras con versión esperada. TransactWriteItems protege
+actualizaciones, stock, consumos únicos, referencias y movimientos de puntos.
+Queries se paginan. Algunas listas administrativas recorren la colección del tipo;
+para volumen alto se necesitan índices/paginación visible antes de escalar.
+Restricción explícita de 100 items por transacción y 20.000 por colección listada.
+Caducidad se verifica en servidor; TTL automático de AWS aún no configurado.
+
+FUTURO AWS
+Mismo SDK y modelo de datos. La fábrica openStore soporta modo cloud explícito;
+la aplicación de arranque todavía utiliza solo endpoint local. Preparar export/import,
+IAM mínimo, región, tabla, índices, TTL, monitoreo y respaldo antes del cambio.
+Plantilla CloudFormation incluye DynamoDB con cifrado, recuperación puntual y
+retención, además de S3 privado/ECR. No se ha desplegado ni contratado AWS.
+DynamoDB Local es herramienta de desarrollo/pruebas, no servicio AWS administrado;
+este piloto de cuentas de prueba no ofrece disponibilidad/operación de producción.
+Docker/compose preparados con endpoint interno y puerto de host loopback; no
+ejecutados: Docker no está instalado. Falta validar su construcción y arranque.
+
+CLOUDFLARE
+Autorizado mantener backend local y conectar mediante Cloudflare.
+Preparado infra/cloudflare/worker.mjs + wrangler.pilot.jsonc para el Worker EXISTENTE
+la-vita-ahora; assets conservan sitio, API requiere origen con clave privada.
+/DEV bloqueado. server/pilot-start.mjs usa origen público en puerto loopback 4175,
+clave .local-data/pilot-gateway.key. Registro/reset públicos apagados sin correo.
+No se debe exponer DynamoDB ni el buzón. Piloto solo cuentas verificadas localmente.
+Dry-run de Wrangler pasó; autorización OAuth de publicación solicitada al titular.
+Aún no se creó upstream/túnel ni se cambió el Worker público.
+
+PENDIENTES DEL PLAN COMPLETO
+Publicación y conectividad Cloudflare, prueba end-to-end del origen público.
+Alta local del primer administrador por el titular, programa comercial y términos.
+Invitaciones por correo, suspensión/gestión avanzada y solicitudes de privacidad:
+prototipo SQL anterior, todavía no portados a endpoints DynamoDB.
+Integración de contenido nuevo con directorios, estadísticas avanzadas/analytics
+subdominio, producción de correo real, respaldo/restore operativo y monitoreo.
+No afirmar que todo el plan ni toda producción está terminada.

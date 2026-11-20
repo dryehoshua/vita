@@ -1,0 +1,35 @@
+{
+  "name": "la-vita-roma-condesa",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:accounts": "node scripts/build-accounts.mjs",
+    "test": "node --test tests/interface.test.mjs tests/dynamodb.test.mjs tests/bridge.test.mjs",
+    "start": "node server/start.mjs",
+    "mail:local": "node scripts/local-operator.mjs mail",
+    "admin:local": "node scripts/local-operator.mjs admin",
+    "aws:synth": "node infra/aws/app.mjs",
+    "test:legacy": "node --test tests/local-server.test.mjs tests/local-mail.test.mjs tests/loyalty.test.mjs tests/workspaces.test.mjs",
+    "db:start": "zsh scripts/start-dynamodb.command",
+    "db:migrate": "node scripts/migrate-dynamodb.mjs"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "3.1173.0",
+    "@aws-sdk/lib-dynamodb": "3.1173.0",
+    "express": "5.3.0",
+    "express-rate-limit": "8.7.5",
+    "nodemailer": "10.6.1",
+    "qrcode": "1.5.4",
+    "sharp": "0.35.5"
+  },
+  "devDependencies": {
+    "@aws-sdk/client-s3": "3.1173.0",
+    "@electric-sql/pglite": "0.5.17",
+    "esbuild": "0.28.2",
+    "jsdom": "31.0.1",
+    "wrangler": "4.166.0"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  }
+}

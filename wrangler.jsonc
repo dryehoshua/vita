@@ -1,0 +1,14 @@
+{
+  "name": "la-vita-ahora",
+  "account_id": "92a459e385fb4a59cad8dd5fa1923884",
+  "compatibility_date": "2026-11-06",
+  "assets": {
+    "directory": "./dist"
+  },
+  "routes": [
+    {
+      "pattern": "roma-condesa.app/*",
+      "zone_name": "roma-condesa.app"
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+services:
+  dynamodb:
+    image: amazon/dynamodb-local:3.3.2
+    command: "-jar DynamoDBLocal.jar -sharedDb -dbPath /home/dynamodblocal/data -disableTelemetry"
+    volumes:
+      - dynamodb-data:/home/dynamodblocal/data
+    # Database is not published on the host network.
+  vita:
+    build: .
+    ports:
+      - "127.0.0.1:4173:4173"
+    environment:
+      APP_ORIGIN: http://localhost:4173
+      DATA_DIR: /data
+      BIND_HOST: 0.0.0.0
+      DYNAMODB_CONTAINER: "true"
+      DYNAMODB_ENDPOINT: http://dynamodb:8000
+    volumes:
+      - vita-data:/data
+    restart: on-failure
+    depends_on:
+      - dynamodb
+volumes:
+  dynamodb-data:
+  vita-data:

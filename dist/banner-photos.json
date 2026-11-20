@@ -1,0 +1,12 @@
+{
+  "muertos": {
+    "src": "assets/banner-muertos.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Gran_Desfile_del_D%C3%ADa_de_Muertos_(tambores_entre_El_Caballito_y_avenida_Ju%C3%A1rez).jpg",
+    "original": "https://upload.wikimedia.org/wikipedia/commons/d/d2/Gran_Desfile_del_D%C3%ADa_de_Muertos_%28tambores_entre_El_Caballito_y_avenida_Ju%C3%A1rez%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=original"
+  },
+  "condesa": {
+    "src": "assets/banner-condesa.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Condesa_Mexico_City_neighborhood_main_street_jacaranda_flowering.jpg",
+    "original": "https://upload.wikimedia.org/wikipedia/commons/a/af/Condesa_Mexico_City_neighborhood_main_street_jacaranda_flowering.jpg?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=original"
+  }
+}
