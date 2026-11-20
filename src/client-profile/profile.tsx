@@ -13,8 +13,9 @@ type Data={
  programs:Program[],fee:number,activity:{id:string,date:string,delta:number,reason:string,type?:string,programId:string,program:string}[],
  welcome?:{points:number,programId:string,program:string,claimed:boolean},
  total:number,categories:number,grade:string,nextGrade:string|null,target:number,badges:Badge[],
- challenges:{id:string,es:string,en:string,count:number,target:number,complete:boolean,month:string,interests:string[]}[],offers:Offer[],
+ challenges:{id:string,es:string,en:string,count:number,target:number,complete:boolean,month:string,interests:string[]}[],offers:Offer[],missions?:Mission[],
 };
+type Mission={id:string,es:string,en:string,detailEs:string,detailEn:string,count:number,target:number,complete:boolean,active:boolean,startedAt:string|null,suggested:boolean};
 type Receipt={amount:number,fee:number,balance:number,recipient:string,reference:string};
 const grades:Record<string,[string,string]>={explorer:['Explorador','Explorer'],regular:['Rostro conocido','Local Favorite'],insider:['Insider','Insider'],legend:['Leyenda del barrio','Neighborhood Legend']};
 const activities:Record<string,[string,string]>={food:['Comida','Food'],coffee:['Café','Coffee'],music:['Música','Music'],art:['Arte y cultura','Art & culture'],nightlife:['Vida nocturna','Nightlife'],walks:['Paseos','Walks'],wellness:['Bienestar','Wellness']};
@@ -98,6 +99,7 @@ function App(){
   {transfer&&program?.transferEnabled?<Transfer key={program.id} lang={lang} program={program} profile={state.profile} fee={state.fee} onComplete={refresh}/>:<section className="module"><h2>{t('Movimientos','Activity')}</h2><button className="text-link" onClick={()=>navigator.clipboard.writeText(state.profile.id).then(e=>{},()=>window.prompt(t('Copia tu identificador','Copy your member ID'),state.profile.id))}>{t('Copiar mi ID para recibir puntos','Copy my ID to receive points')}</button>{!state.activity.some(row=>row.programId===program?.id)&&<p>{t('Aún no hay movimientos.','No transactions yet.')}</p>}{state.activity.filter(row=>row.programId===program?.id).map(row=><div className="movement-row" key={row.id}><span className="movement-icon"><Icon name="receipt"/></span><div><strong>{row.type==='welcome'?t('Bienvenida de prueba','Test welcome bonus'):row.type==='fee'?t('Comisión','Fee'):row.type==='sent'?t('Puntos enviados','Points sent'):row.type==='received'?t('Puntos recibidos','Points received'):row.delta>0?t('Visita validada','Visit verified'):t('Canje o ajuste','Redemption or adjustment')}</strong><small>{new Date(row.date).toLocaleDateString(lang==='es'?'es-MX':'en-US')}</small></div><b className={row.delta>0?'positive':''}>{signed(row.delta)} pts</b></div>)}</section>}
  </>}
  {screen==='adventures'&&<><div className="title-block"><h1>My Adventures</h1><p>{t('Cada visita verificada deja una huella.','Every verified visit leaves a mark.')}</p></div><section className="grade-card">{gradePill}<Progress value={Math.min(100,state.total/state.target*100)} label={gradeText}/></section>
+  <MissionBoard missions={state.missions||[]} lang={lang} refresh={refresh}/>
   <div className="collection-heading"><h2>{t('Tu vitrina','Your collection')}</h2><span>{unlocked.length} / {state.badges.length}</span></div>
   <div className="medal-filters">
    <select aria-label={t('Colección','Collection')} value={medalGroup} onChange={e=>setMedalGroup(e.target.value)}>
@@ -126,6 +128,41 @@ function App(){
  </Sheet>}
  {offer&&<Sheet close={()=>setOffer(undefined)} lang={lang}><h2>{offer.title}</h2><p>{offer.venue} · {grade(offer.minGrade)}</p><p>{offer.summary}</p><p>{t('Vigente hasta','Available through')} {offer.endDay}</p>{offer.eligible?<><p>{offer.conditions}</p>{offer.website&&<a className="btn secondary" href={offer.website} target="_blank" rel="noreferrer">{t('Ver condiciones oficiales','See official terms')}</a>}</>:<p>{t('Desbloquea este beneficio al alcanzar','Unlock this offer when you reach')} {grade(offer.minGrade)}.</p>}</Sheet>}
  </div>;
+}
+function MissionBoard({missions,lang,refresh}:{missions:Mission[],lang:Lang,refresh:()=>Promise<Data>}){
+ const [expanded,setExpanded]=useState(false);
+ const [pending,setPending]=useState(false);
+ const [error,setError]=useState('');
+ const t=(es:string,en:string)=>choice(lang,[es,en]);
+ const active=missions.find(m=>m.active&&!m.complete);
+ const completed=missions.filter(m=>m.complete).length;
+ const ordered=missions.slice().sort((a,b)=>Number(b.active)-Number(a.active)||Number(b.suggested)-Number(a.suggested));
+ if(!missions.length)return null;
+ async function select(id:string|null){
+  setError('');setPending(true);
+  try{await api('/api/client/missions',{id},'PUT');await refresh();}
+  catch(e){setError(alertCopy(lang,e));}finally{setPending(false);}
+ }
+ return <section className="module missions-board" aria-label={t('Misiones de barrio','Neighborhood missions')}>
+  <div className="section-heading">
+   <div><h2>{t('Misiones de barrio','Neighborhood missions')}</h2>
+    <p>{active?`${active[lang]} · ${active.count}/${active.target}`:t(`${completed} de ${missions.length} completadas`,`${completed} of ${missions.length} completed`)}</p></div>
+   <button className="text-link" aria-expanded={expanded} onClick={()=>setExpanded(!expanded)}>{expanded?t('Ocultar','Hide'):t('Ver misiones','See missions')}</button>
+  </div>
+  {expanded&&<div className="missions-list">
+   <p>{t('Elige un plan sin fecha límite. Cuenta desde que lo inicias.','Choose a plan with no deadline. Visits count from when you start.')}</p>
+   {ordered.map(m=><article className="challenge-card" key={m.id}>
+    <strong>{m[lang]}</strong>
+    {!m.startedAt&&m.suggested&&<span className="mission-label">{t('Para ti','For you')}</span>}
+    <p>{lang==='es'?m.detailEs:m.detailEn}</p>
+    <Progress value={m.count/m.target*100} label={m.complete?t('Completada','Completed'):`${m.count} / ${m.target}`}/>
+    {!m.complete&&(m.active
+     ?<button className="text-link" disabled={pending} onClick={()=>select(null)}>{t('Quitar del resumen','Unpin')}</button>
+     :<button className="btn secondary" disabled={pending} onClick={()=>select(m.id)}>{m.startedAt?t('Fijar misión','Pin mission'):t('Iniciar misión','Start mission')}</button>)}
+   </article>)}
+   {error&&<p role="alert">{error}</p>}
+  </div>}
+ </section>;
 }
 function Sheet({close,lang,children}:{close:()=>void,lang:Lang,children:React.ReactNode}){
  const ref=React.useRef<HTMLDialogElement>(null);

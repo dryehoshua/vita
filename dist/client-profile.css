@@ -1537,3 +1537,12 @@ section p { overflow-wrap:anywhere; }
 .welcome-offer { display: flex; align-items: center; gap: 12px; justify-content: space-between; padding: 12px; border: 1px solid var(--brass); border-radius: 12px; }
 .welcome-offer h2 { margin: 4px 0; font-size: 20px; }
 .welcome-offer p { font-size: 12px; margin: 0; }
+
+.missions-board { border: 1px solid var(--line); border-radius: 14px; padding: 12px; background: var(--paper); }
+.missions-board .section-heading { margin-bottom: 0; align-items: center; }
+.missions-board .section-heading h2 { font-size: 20px; }
+.missions-board .section-heading p,.missions-list > p { font-size: 13px; color: var(--muted); }
+.missions-board .text-link { min-height: 48px; }
+.missions-board .challenge-card .btn { width: auto; margin-top: 8px; }
+.missions-list > p { margin-top: 10px; }
+.mission-label { margin-left: 8px; color: var(--wine); font-size: 12px; }

@@ -121,3 +121,20 @@ test('signup OTP is one-use and unlocks one welcome bonus without visit credit',
  assert.equal(data.activity.filter(row=>row.type==='welcome').length,1);
  assert.equal(data.total,0);
 });
+
+test('mission progress counts only visits after starting and distinguishes places',async()=>{
+ const {missionProgress}=await import('../server/dynamo/neighborhood-missions.mjs');
+ const before='2026-11-01T12:00:00.000Z',start='2026-11-02T12:00:00.000Z',after='2026-11-03T12:00:00.000Z';
+ const visit=(venue,created_at,category)=>({venue,created_at,category,tags:[category]});
+ const record={startedAt:{'coffee-trail':start,'mix-it-up':start},active:'mix-it-up'};
+ const visits=[visit('old',before,'cafe'),visit('cafe1',after,'cafe'),visit('cafe1',after,'cafe')];
+ const first=missionProgress(visits,record,['coffee']);
+ assert.equal(first.find(m=>m.id==='coffee-trail').count,1);
+ assert.equal(first.find(m=>m.id==='coffee-trail').suggested,true);
+ assert.equal(first.find(m=>m.id==='first-stamp').count,0);
+ assert.equal(first.find(m=>m.id==='mix-it-up').active,true);
+ const next=missionProgress([...visits,visit('cafe2',after,'cafe'),visit('store',after,'store')],{...record,active:'coffee-trail'},[]);
+ assert.equal(next.find(m=>m.id==='coffee-trail').complete,true);
+ assert.equal(next.find(m=>m.id==='mix-it-up').complete,true);
+ assert.equal(next.find(m=>m.id==='mix-it-up').active,false);
+});
