@@ -73,11 +73,17 @@ la-vita-ahora; assets conservan sitio, API requiere origen con clave privada.
 /DEV bloqueado. server/pilot-start.mjs usa origen público en puerto loopback 4175,
 clave .local-data/pilot-gateway.key. Registro/reset públicos apagados sin correo.
 No se debe exponer DynamoDB ni el buzón. Piloto solo cuentas verificadas localmente.
-Dry-run de Wrangler pasó; autorización OAuth de publicación solicitada al titular.
-Aún no se creó upstream/túnel ni se cambió el Worker público.
+Piloto publicado en roma-condesa.app el 20 de noviembre de 2026.
+Versión del Worker: e1d7454a-0082-40c4-b2f4-898524cf6d09.
+Versión anterior: bdcba050-d504-4809-932c-4a2394eade0e.
+La conexión actual usa un Quick Tunnel de Cloudflare hacia 127.0.0.1:4175.
+Si se detiene el túnel, su URL cambia al reiniciarlo. Actualizar BACKEND_ORIGIN
+en Cloudflare al reiniciar. La portada estática se sirve desde Cloudflare.
+Se verificaron inicio y cierre de sesión públicos con una cuenta verificada
+localmente, cookie Secure/HttpOnly, registro público cerrado y buzón inaccesible.
 
 PENDIENTES DEL PLAN COMPLETO
-Publicación y conectividad Cloudflare, prueba end-to-end del origen público.
+Túnel estable y arranque automático del backend y conectores al reiniciar el Mac.
 Alta local del primer administrador por el titular, programa comercial y términos.
 Invitaciones por correo, suspensión/gestión avanzada y solicitudes de privacidad:
 prototipo SQL anterior, todavía no portados a endpoints DynamoDB.
