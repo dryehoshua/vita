@@ -1,4 +1,4 @@
-const measuredPages = new Set(['/','/cuenta','/panel','/guias','/alojamientos','/ahora','/socialite']);
+const measuredPages = new Set(['/','/cuenta','/perfil','/panel','/guias','/alojamientos','/ahora','/socialite']);
 const noCache = {'Cache-Control':'no-store'};
 const unavailable = () => Response.json({error:'Pilot backend unavailable'},{status:503,headers:noCache});
 const notFound = () => new Response('Not found',{status:404});

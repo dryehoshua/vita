@@ -1,4 +1,4 @@
-const pages = new Set(['/','/cuenta','/panel','/guias','/alojamientos','/ahora','/socialite']);
+const pages = new Set(['/','/cuenta','/perfil','/panel','/guias','/alojamientos','/ahora','/socialite']);
 const dayFormat = new Intl.DateTimeFormat('en-CA',{timeZone:'America/Mexico_City'});
 
 export function mountAnalytics(app, store, local) {

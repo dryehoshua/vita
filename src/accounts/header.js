@@ -10,12 +10,12 @@ export function refreshAccountHeader(){
  const n=document.querySelector('#profile-name'),p=document.querySelector('#profile-points'),a=document.querySelector('.avatar'),b=document.querySelector('#profile-button'),shop=document.querySelector('#shop-profile');
  if(n)n.textContent=name;if(p)p.textContent=points;if(a)a.textContent=member?.name?.slice(0,1).toUpperCase()||'♡';
  if(b)b.setAttribute('aria-label',english()?'Open my account':'Abrir mi cuenta');
- if(shop){shop.textContent='';const link=document.createElement('a');link.href='/cuenta';link.textContent=name+' · '+points;shop.append(link);}
+ if(shop){shop.textContent='';const link=document.createElement('a');link.href=member?'/perfil':'/cuenta';link.textContent=name+' · '+points;shop.append(link);}
 }
 if(accountsEnabled){
  refreshAccountHeader();
  document.addEventListener('change',e=>{if(e.target.matches('#language,#shop-language'))queueMicrotask(refreshAccountHeader);});
- document.addEventListener('click',e=>{if(e.target.closest('#profile-button,[data-demo]')){e.preventDefault();e.stopImmediatePropagation();location.assign('/cuenta');}if(e.target.closest('#save-shop')){e.preventDefault();e.stopImmediatePropagation();location.assign('/cuenta?save=%2Flugares%2Fla-galleteria&title=La%20Galleter%C3%ADa');}},true);
+ document.addEventListener('click',e=>{if(e.target.closest('#profile-button,[data-demo]')){e.preventDefault();e.stopImmediatePropagation();location.assign(member&&e.target.closest('#profile-button')?'/perfil':'/cuenta');}if(e.target.closest('#save-shop')){e.preventDefault();e.stopImmediatePropagation();location.assign('/cuenta?save=%2Flugares%2Fla-galleteria&title=La%20Galleter%C3%ADa');}},true);
  void (async()=>{
  const {createClient}=await import('./local-client.js');
  const client=createClient();

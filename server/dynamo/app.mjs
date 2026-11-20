@@ -1,3 +1,4 @@
+import {mountAdventures} from './adventures.mjs';
 import {mountAnalytics} from './analytics.mjs';
 import {mountLoyalty} from './loyalty.mjs';
 import {mountContent} from './content.mjs';
@@ -89,6 +90,7 @@ export async function createDynamoApp({store:provided,table='LaVitaLocal',endpoi
  mountAnalytics(app,store,local);
  mountContent(app,{store,authenticated,isAdmin,dataDir});
  mountLoyalty(app,{store,authenticated,isAdmin});
+ mountAdventures(app,{store,authenticated});
  app.get('/api/health',(req,res)=>res.json({ok:true,mode:local?'local':'hosted',database:'DynamoDB'}));
  app.get('/account-config.js',(req,res)=>res.type('js').send(`export const accountConfig=${JSON.stringify({enabled:true,provider:'local',database:'dynamodb',siteUrl:origin,privacyUrl:'/privacidad-local',localMailbox:local,registrationEnabled:local||!!delivery})};`));
  app.get('/privacidad-local',(req,res)=>res.type('html').send('<h1>La Vita · Prueba local</h1><p>Usa datos de prueba. Las cuentas se guardan en DynamoDB Local en esta computadora; las fotos en su almacenamiento local. No se envían correos externos. Este texto no sustituye el aviso para apertura pública.</p><a href="/cuenta">Volver</a>'));

@@ -13,7 +13,7 @@ function object(value,allowed){if(!value||typeof value!=='object'||Array.isArray
 
  function normalize(kind,input,submit=false){
   const common=['title','summary','language','photos'];
-  const specific={event:['category','day','startTime','endTime','venue','address','website'],promotion:['category','day','endDay','venue','conditions','website'],article:['body','category','tags','sources'],business:['category','address','phone','website','hours','specialty','menu','services'],guide:['bio','languages','areas','hourlyRateCents','minHours','contactUrl'],tour:['itinerary','meetingPoint','durationMinutes','maxGroup','priceCents','includes','excludes','accessibility','conditions','areas','languages']};
+  const specific={event:['category','day','startTime','endTime','venue','address','website'],promotion:['category','day','endDay','venue','conditions','website','minGrade'],article:['body','category','tags','sources'],business:['category','address','phone','website','hours','specialty','menu','services','visitTags','brunch'],guide:['bio','languages','areas','hourlyRateCents','minHours','contactUrl'],tour:['itinerary','meetingPoint','durationMinutes','maxGroup','priceCents','includes','excludes','accessibility','conditions','areas','languages']};
   const v=object(input,[...common,...specific[kind]]);
   const doc={title:plain(v.title,160,true),summary:plain(v.summary,600,submit),language:v.language||'es',photos:list(v.photos,12,p=>{object(p,['url','caption','credit','rights']);return {url:plain(p.url,500,true),caption:plain(p.caption,240),credit:plain(p.credit,200,submit),rights:plain(p.rights,300,submit)};})};
   if(!['es','en'].includes(doc.language))fail(400,'Use es or en');
@@ -27,6 +27,7 @@ function object(value,allowed){if(!value||typeof value!=='object'||Array.isArray
    if(kind==='event')Object.assign(doc,{startTime:clock(v.startTime,submit),endTime:clock(v.endTime,submit),address:plain(v.address,300,submit)});
    else{
     Object.assign(doc,{endDay:calendarDay(v.endDay,submit),conditions:plain(v.conditions,2000,submit)});
+    if(v.minGrade){if(!['regular','insider','legend'].includes(v.minGrade))fail(400,'Invalid grade');doc.minGrade=v.minGrade;}
     if(doc.endDay&&doc.day&&doc.endDay<doc.day)fail(400,'Invalid promotion period');
    }
   }
@@ -34,7 +35,15 @@ function object(value,allowed){if(!value||typeof value!=='object'||Array.isArray
   if(kind==='business'){
    const category=v.category||'other';if(!['restaurant','bar','cafe','store','stay','wellness','other'].includes(category))fail(400,'Invalid business category');
    const entry=e=>{object(e,['name','category','description','priceCents','currency','available','durationMinutes']);if(e.available!==undefined&&typeof e.available!=='boolean')fail(400,'Invalid availability');if(e.currency!==undefined&&e.currency!=='MXN')fail(400,'Use MXN');return {name:plain(e.name,120,true),category:plain(e.category,80),description:plain(e.description,600),priceCents:integer(e.priceCents,0,100000000),currency:'MXN',available:e.available!==false,...(e.durationMinutes!==undefined?{durationMinutes:integer(e.durationMinutes,1,1440)}:{})};};
-   Object.assign(doc,{category,address:plain(v.address,500,submit),phone:plain(v.phone,50),website:https(v.website),hours:plain(v.hours,1200),specialty:plain(v.specialty,600),menu:list(v.menu,200,entry),services:list(v.services,100,entry)});
+   const visitTags=list(v.visitTags,2,tag=>{if(!['nightlife','taco'].includes(tag))fail(400,'Invalid visit category');return tag;});
+   const brunch=v.brunch?object(v.brunch,['days','start','end']):null;
+   if(brunch){
+    const times=[brunch.start,brunch.end];
+    if(times.some(t=>typeof t!=='string'||!/^([01]\d|2[0-3]):[0-5]\d$/.test(t))||brunch.start>=brunch.end)fail(400,'Invalid brunch hours');
+    brunch.days=list(brunch.days,7,d=>integer(d,0,6));
+    if(!brunch.days.length)fail(400,'Select brunch days');
+   }
+   Object.assign(doc,{visitTags,...(brunch?{brunch}:{}),category,address:plain(v.address,500,submit),phone:plain(v.phone,50),website:https(v.website),hours:plain(v.hours,1200),specialty:plain(v.specialty,600),menu:list(v.menu,200,entry),services:list(v.services,100,entry)});
   }
   if(kind==='guide'||kind==='tour'){
    const selected=list(v.areas,3,a=>{if(!areas.includes(a))fail(400,'Only CDMX, metropolitan area and Teotihuacán');return a;});
