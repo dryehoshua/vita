@@ -105,10 +105,13 @@ function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
 
 function Brand() {
   return (
-    <div className="brand" aria-label="La Vita">
-      <span>LA VITA</span>
-      <small>ROMA CONDESA</small>
-    </div>
+    <img
+      className="brand"
+      src="/assets/la-vita-logo-512.png"
+      width={116}
+      height={48}
+      alt="La Vita Roma Condesa"
+    />
   );
 }
 

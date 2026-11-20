@@ -68,22 +68,11 @@
   gap: 12px;
 }
 .brand {
-  display: flex;
-  flex-direction: column;
-  color: var(--wine);
-  line-height: 1;
-  letter-spacing: 0.14em;
-}
-.brand span {
-  font-family: "Bodoni Moda", serif;
-  font-size: 21px;
-  font-weight: 600;
-}
-.brand small {
-  font-size: 6px;
-  font-weight: 700;
-  letter-spacing: 0.27em;
-  margin-top: 5px;
+  display: block;
+  width: 116px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 6px;
 }
 .language {
   min-width: 66px;
