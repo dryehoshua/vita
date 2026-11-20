@@ -14,7 +14,7 @@ se comunica solo con la API DynamoDB, no abre esos archivos como SQLite.
 
 Backend activo: http://localhost:4173/cuenta. /panel contiene los espacios.
 Inicio DB: scripts/start-dynamodb.command; después scripts/start-local.command.
-No se instaló arranque automático del Mac. Ambos procesos deben permanecer vivos.
+El arranque automático y respaldo local se describen en operacion-piloto.md.
 Buzón de pruebas: /dev/mail. Datos locales sin envío de correo externo.
 Sin cuenta admin por defecto. Crear/verificar cuenta de prueba primero; luego
 npm run admin:local -- correo@example.test asigna admin en DYNAMODB (no SQLite).
@@ -37,11 +37,10 @@ fotos locales privadas, versiones aprobadas independientes, revisión y publicac
 Área de servicio de guías limitada a CDMX/metropolitana/Teotihuacán.
 Programas/recompensas inicialmente inactivos. QR opaco de 5 minutos, inspección,
 validación por equipo activo, límite diario, referencias idempotentes, saldo y
-stock atómicos, reversos compensatorios. No hay programa comercial activado.
+stock atómicos, reversos compensatorios. Solo está activo el programa identificado como prueba, sin valor comercial.
 Los visitantes no pueden darse puntos ni asignarse roles. El editor no se aprueba.
-El QR requiere pegar/escanear con lector externo; cámara integrada aún pendiente.
-Contenido aprobado disponible en /api/public/content; integrar cada nuevo
-contenido en directorios públicos existentes sigue pendiente.
+El panel incluye cámara y captura manual; falta probar la cámara en un teléfono.
+El catálogo y la agenda consultan las fichas aprobadas en /api/public/content.
 
 MODELO
 Tabla LaVitaLocal con clave compuesta pk/sk. Cada entidad es un item independiente;
@@ -74,19 +73,20 @@ la-vita-ahora; assets conservan sitio, API requiere origen con clave privada.
 clave .local-data/pilot-gateway.key. Registro/reset públicos apagados sin correo.
 No se debe exponer DynamoDB ni el buzón. Piloto solo cuentas verificadas localmente.
 Piloto publicado en roma-condesa.app el 20 de noviembre de 2026.
-Versión del Worker: e1d7454a-0082-40c4-b2f4-898524cf6d09.
-Versión anterior: bdcba050-d504-4809-932c-4a2394eade0e.
+Versión del Worker: 536ba289-df23-4227-abe7-a7c8908547d8.
+Versión anterior: e1d7454a-0082-40c4-b2f4-898524cf6d09.
 La conexión actual usa un Quick Tunnel de Cloudflare hacia 127.0.0.1:4175.
 Si se detiene el túnel, su URL cambia al reiniciarlo. Actualizar BACKEND_ORIGIN
 en Cloudflare al reiniciar. La portada estática se sirve desde Cloudflare.
 Se verificaron inicio y cierre de sesión públicos con una cuenta verificada
 localmente, cookie Secure/HttpOnly, registro público cerrado y buzón inaccesible.
 
-PENDIENTES DEL PLAN COMPLETO
-Túnel estable y arranque automático del backend y conectores al reiniciar el Mac.
-Alta local del primer administrador por el titular, programa comercial y términos.
-Invitaciones por correo, suspensión/gestión avanzada y solicitudes de privacidad:
-prototipo SQL anterior, todavía no portados a endpoints DynamoDB.
-Integración de contenido nuevo con directorios, estadísticas avanzadas/analytics
-subdominio, producción de correo real, respaldo/restore operativo y monitoreo.
-No afirmar que todo el plan ni toda producción está terminada.
+ESTADO OPERATIVO
+DynamoDB, backend público y backend local se reinician por launchd en el Mac.
+Se probó la restauración de un respaldo en otra instancia de DynamoDB Local.
+analytics.roma-condesa.app dirige al panel administrativo con doble factor.
+El túnel fijo requiere autorizar Cloudflare Tunnel para esta zona. El túnel
+temporal sigue activo hasta verificar el reemplazo.
+Pendientes de verificación real: cámara en teléfono y recuperación tras
+reinicio completo del Mac y corte de red. FileVault exige desbloqueo al arrancar.
+El correo y registro público quedan cerrados mientras dure el piloto.

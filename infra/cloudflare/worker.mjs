@@ -1,15 +1,61 @@
-// Existing static site plus same-origin API bridge. Secrets stay in Worker/server.
-export default {
- async fetch(request,env){
-  const url=new URL(request.url);
-  if(url.pathname.startsWith('/api/')||url.pathname==='/account-config.js'||url.pathname==='/privacidad-local'){
-   if(!env.BACKEND_ORIGIN||!env.VITA_GATEWAY_KEY)return new Response(JSON.stringify({error:'Pilot backend unavailable'}),{status:503,headers:{'Content-Type':'application/json','Cache-Control':'no-store'}});
-   const upstream=new URL(env.BACKEND_ORIGIN);if(upstream.protocol!=='https:')return new Response('Invalid origin',{status:503});
-   upstream.pathname=url.pathname;upstream.search=url.search;
-   const headers=new Headers(request.headers);headers.delete('x-vita-gateway');headers.set('x-vita-gateway',env.VITA_GATEWAY_KEY);
-   try{const response=await fetch(new Request(upstream,{method:request.method,headers,body:['GET','HEAD'].includes(request.method)?undefined:request.body,redirect:'manual'}));const out=new Response(response.body,response);out.headers.set('Cache-Control','no-store');return out;}catch{return new Response(JSON.stringify({error:'Pilot computer offline'}),{status:503,headers:{'Content-Type':'application/json','Cache-Control':'no-store'}});}
+const measuredPages = new Set(['/','/cuenta','/panel','/guias','/alojamientos','/ahora','/socialite']);
+const noCache = {'Cache-Control':'no-store'};
+const unavailable = () => Response.json({error:'Pilot backend unavailable'},{status:503,headers:noCache});
+const notFound = () => new Response('Not found',{status:404});
+
+function upstream(env, path) {
+  if (!env.BACKEND_ORIGIN || !env.VITA_GATEWAY_KEY) return null;
+  const url = new URL(path, env.BACKEND_ORIGIN);
+  return url.protocol === 'https:' ? url : null;
+}
+
+async function trackPage(env, path) {
+  const url = upstream(env, '/api/internal/page-view');
+  if (!url) return;
+  try {
+    await fetch(url, {method:'POST', headers:{
+      'Content-Type':'application/json', 'x-vita-gateway':env.VITA_GATEWAY_KEY,
+      'x-vita-event':'page-view', Origin:'https://roma-condesa.app',
+    }, body:JSON.stringify({path})});
+  } catch {
+    // The directory remains available during a local outage.
   }
-  if(url.pathname.startsWith('/dev/'))return new Response('Not found',{status:404});
-  return env.ASSETS.fetch(request);
- }
+}
+
+export default {
+  async fetch(request,env,ctx){
+    const url = new URL(request.url);
+    const path = url.pathname;
+    if (url.hostname === 'analytics.roma-condesa.app') {
+      return Response.redirect('https://roma-condesa.app/cuenta?view=analytics',302);
+    }
+    if (path.startsWith('/dev/') || path.startsWith('/api/internal/')) return notFound();
+    if (path.startsWith('/api/') || path === '/account-config.js' || path === '/privacidad-local') {
+      // Assign pathname rather than treating caller-controlled input as a URL.
+      const target = upstream(env, '/');
+      if (!target) return unavailable();
+      target.pathname = path;
+      target.search = url.search;
+      const headers = new Headers(request.headers);
+      headers.set('x-vita-gateway',env.VITA_GATEWAY_KEY);
+      headers.delete('x-vita-event');
+      try {
+        const response = await fetch(new Request(target,{method:request.method,headers,
+          body:['GET','HEAD'].includes(request.method)?undefined:request.body,redirect:'manual'}));
+        if (response.status >= 502) return unavailable();
+        const out = new Response(response.body,response);
+        out.headers.set('Cache-Control','no-store');
+        return out;
+      } catch {
+        return unavailable();
+      }
+    }
+    const response = await env.ASSETS.fetch(request);
+    const canonical = path.replace(/\.html$/,'').replace(/\/$/,'') || '/';
+    if (ctx && request.method === 'GET' && response.ok && measuredPages.has(canonical)
+      && response.headers.get('content-type')?.includes('text/html')) {
+      ctx.waitUntil(trackPage(env,canonical));
+    }
+    return response;
+  }
 };

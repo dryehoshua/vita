@@ -19,3 +19,29 @@ test('approved request creates business once',async()=>{await api('/api/query',{
 test('drafts stay private, cross-owner denied, publication preserved',async()=>{const org=(await store.list('Organizations'))[0].id,d={title:'Cafe',summary:'A real test description',language:'es',category:'cafe',address:'Test address',photos:[]};const r=await api('/api/workspaces',{kind:'business',organization_id:org,document:d},alice);assert.equal(r.status,201);let doc=r.body.data;assert.equal((await api('/api/workspaces/'+doc.id,undefined,bob,'GET')).status,403);assert.equal((await api('/api/public/content',undefined,undefined,'GET')).body.data.length,0);doc=(await api('/api/workspaces/'+doc.id+'/submit',{version:doc.version},alice)).body.data;doc=(await api('/api/workspaces/'+doc.id+'/review',{version:doc.version,action:'publish',reason:'Reviewed'},admin)).body.data;assert.equal((await api('/api/workspaces/'+doc.id,{version:doc.version,document:{...d,title:'Unapproved'}},alice,'PUT')).status,200);assert.equal((await api('/api/public/content/'+doc.id,undefined,undefined,'GET')).body.data.document.title,'Cafe');});
 test('DynamoDB earn and redeem are atomic and reference-idempotent',async()=>{const org=(await store.list('Organizations'))[0].id;let p=(await api('/api/loyalty/programs',{organization_id:org,name:'Test only',points_per_visit:10,daily_earn_limit:2,conditions:'Test only'},admin)).body.data;assert.equal((await api('/api/loyalty/codes',{program_id:p.id,kind:'earn'},bob)).status,409);await api('/api/loyalty/programs/'+p.id,{active:true},admin,'PATCH');const code=(await api('/api/loyalty/codes',{program_id:p.id,kind:'earn'},bob)).body.data.code;const b={organization_id:org,code,reference:'ticket1'};assert.equal((await api('/api/loyalty/validate',b,bob)).status,403);assert.equal((await api('/api/loyalty/validate',b,alice)).status,200);assert.equal((await api('/api/loyalty/validate',b,alice)).status,200);assert.equal((await api('/api/loyalty/validate',{...b,reference:'ticket2'},alice)).status,409);let reward=(await api('/api/loyalty/programs/'+p.id+'/rewards',{title:'Test gift',cost:10,stock:1,conditions:'Test only'},admin)).body.data;await api('/api/loyalty/rewards/'+reward.id,{active:true},admin,'PATCH');const c1=(await api('/api/loyalty/codes',{program_id:p.id,kind:'redeem',reward_id:reward.id},bob)).body.data.code,c2=(await api('/api/loyalty/codes',{program_id:p.id,kind:'redeem',reward_id:reward.id},bob)).body.data.code;const both=await Promise.all([api('/api/loyalty/validate',{organization_id:org,code:c1,reference:'redeem1'},alice),api('/api/loyalty/validate',{organization_id:org,code:c2,reference:'redeem2'},alice)]);assert.equal(both.filter(x=>x.status===200).length,1);assert.equal((await store.get('Wallets#'+await uid('bob@example.test'),p.id)).balance,0);assert.equal((await store.get('Rewards',reward.id)).stock,0);});
 test('reset invalidates all existing sessions; token consumed once',async()=>{await api('/api/auth/reset',{email:'bob@example.test'});const m=readdirSync(join(dir,'mail')).map(f=>JSON.parse(readFileSync(join(dir,'mail',f)))).find(m=>m.to==='bob@example.test'&&m.purpose==='recovery'),token=new URL(m.url).searchParams.get('token');assert.equal((await api('/api/auth/password',{token,password:'new-test-password'})).status,200);assert.equal((await api('/api/query',{table:'profiles'},bob)).status,401);assert.equal((await api('/api/auth/password',{token,password})).status,400);});
+test('event and promotion snapshots require another reviewer and validated CDMX dates',async()=>{
+ const writerId=await uid('alice@example.test');
+ const writer=await store.get('Users',writerId);
+ await store.put('Users',writerId,{...writer,roles:[...writer.roles,'writer','editor']});
+ const document={title:'Test event',summary:'Confirmed with host',language:'es',photos:[],category:'music',
+  day:'2026-11-28',startTime:'18:00',endTime:'20:00',venue:'Test location',address:'Test address',website:'https://example.test/event'};
+ assert.equal((await api('/api/workspaces',{kind:'event',document:{...document,day:'2026-02-30'}},alice)).status,400);
+ let result=await api('/api/workspaces',{kind:'event',document},alice);
+ assert.equal(result.status,201);
+ let saved=result.body.data;
+ assert.equal((await api('/api/public/content/'+saved.id,undefined,undefined,'GET')).status,404);
+ saved=(await api('/api/workspaces/'+saved.id+'/submit',{version:saved.version},alice)).body.data;
+ const review={version:saved.version,action:'publish',reason:'Verified source'};
+ assert.equal((await api('/api/workspaces/'+saved.id+'/review',review,alice)).status,403);
+ assert.equal((await api('/api/workspaces/'+saved.id+'/review',review,admin)).status,200);
+ const live=(await api('/api/public/content?kind=event',undefined,undefined,'GET')).body.data;
+ assert.equal(live[0].document.startTime,'18:00');
+});
+test('suspension requires MFA and expires the active session',async()=>{
+ const path='/api/admin/accounts/'+await uid('alice@example.test')+'/status';
+ assert.equal((await api(path,{status:'suspended',reason:'Test'},alice,'PATCH')).status,403);
+ assert.equal((await api(path,{status:'suspended',reason:'Test'},admin,'PATCH')).status,200);
+ assert.equal((await api('/api/query',{table:'profiles'},alice)).status,401);
+ assert.equal((await api(path,{status:'active',reason:'Test complete'},admin,'PATCH')).status,200);
+ assert.equal((await api('/api/query',{table:'profiles'},alice)).status,401);
+});

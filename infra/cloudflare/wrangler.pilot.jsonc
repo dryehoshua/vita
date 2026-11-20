@@ -3,6 +3,6 @@
   "account_id": "92a459e385fb4a59cad8dd5fa1923884",
   "main": "worker.mjs",
   "compatibility_date": "2026-11-20",
-  "assets": {"directory": "../../dist", "binding": "ASSETS", "run_worker_first": ["/api/*", "/account-config.js", "/privacidad-local", "/dev/*"]},
-  "routes": [{"pattern": "roma-condesa.app/*", "zone_name": "roma-condesa.app"}]
+  "assets": {"directory": "../../dist", "binding": "ASSETS", "run_worker_first": true},
+  "routes": [{"pattern": "roma-condesa.app/*", "zone_name": "roma-condesa.app"}, {"pattern": "analytics.roma-condesa.app", "custom_domain": true}]
 }

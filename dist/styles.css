@@ -37,3 +37,12 @@ body{font-size:14px;line-height:1.45;background:#fcfaf6}.wrap{width:calc(100% - 
 
 /* Shared navigation includes the dedicated accommodation view. */
 .site-sections{overflow-x:auto;white-space:nowrap;scrollbar-width:thin}.site-sections>a{flex-shrink:0}
+.live-directory { width: min(100% - 2rem, 75rem); margin: 1.5rem auto; }
+.live-directory > div { display: grid; grid-template-columns: repeat(auto-fit,minmax(12rem,1fr)); gap: .8rem; }
+.live-directory article { border: 1px solid #7775; padding: .8rem; border-radius: .8rem; }
+.live-directory button { cursor: pointer; }
+.live-directory img { width: 100%; aspect-ratio: 16/9; object-fit: cover; border-radius: .45rem; }
+.live-detail { width: min(36rem,90vw); max-height: 85vh; overflow: auto; border: 0; border-radius: .75rem; padding: 1.2rem; }
+.live-detail img { width: 100%; height: auto; }
+.live-detail p { white-space: pre-line; }
+.live-detail a { display: block; margin-block: .55rem; }

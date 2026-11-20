@@ -31,6 +31,7 @@ async function load(){
  if(!user){authView();return;}
  [profile,roles,members]=await Promise.all([client.from('profiles').select('*').eq('id',user.id).single().then(check),client.from('global_roles').select('role').then(check),client.from('memberships').select('organization_id,role,active,organizations(name)').eq('user_id',user.id).then(check)]);
  if(recovery){authView();return;}await dashboard();
+ if(new URLSearchParams(location.search).get('view')==='analytics'&&roles.some(r=>r.role==='admin')){await adminPanel();$('#admin-panel').scrollIntoView();}
 }
 async function dashboard(){
  const [favorites,entries,requests]=await Promise.all([client.from('favorites').select('*').order('created_at',{ascending:false}).then(check),client.from('point_entries').select('program,delta,created_at,reason').then(check),client.from('access_requests').select('*').eq('user_id',user.id).order('created_at',{ascending:false}).then(check)]);
@@ -51,7 +52,20 @@ async function adminPanel(){
   $('#mfa-form').onsubmit=e=>run(e,async()=>{if(!activeFactor)throw Error('Enroll required');check(await client.auth.mfa.challengeAndVerify({factorId:activeFactor,code:new FormData(e.target).get('code')}));await adminPanel();});return;
  }
  const [metrics,requests]=await Promise.all([client.rpc('account_metrics').then(check),client.from('access_requests').select('*').eq('status','pending').order('created_at').then(check)]);
- box.innerHTML=`<div class="grid"><div><p class="metric">${metrics.accounts}</p><p>${t('Cuentas verificadas','Verified accounts')}</p></div><div><p class="metric">${metrics.pending}</p><p>${t('Solicitudes pendientes','Pending requests')}</p></div></div><h3>${t('Usuarios por rol','Users by role')}</h3><p>${t('Una persona puede tener varios roles.','One person can have several roles.')}</p>${Object.entries(metrics.roles).map(([k,v])=>`<p>${esc(label(k))}: <b>${v}</b></p>`).join('')||`<p>${t('Sin roles adicionales.','No additional roles.')}</p>`}<h3>${t('Preferencias declaradas','Declared preferences')}</h3>${Object.entries(metrics.residence).map(([k,v])=>`<p>${esc(label(k))}: ${v}</p>`).join('')}<h3>${t('Visitas','Visits')}</h3><p>${t(`${metrics.pageViews ?? 0} páginas vistas en este servidor local. Incluye recargas y pruebas; no son visitantes únicos.`,`${metrics.pageViews ?? 0} page views on this local server. Includes reloads and tests; not unique visitors.`)}</p><h3>${t('Solicitudes','Requests')}</h3>${requests.map(r=>`<div class="item"><b>${esc(r.name)}</b> · ${esc(label(r.kind))}<div class="row">${button(t('Aprobar','Approve'),'approve',`data-id="${r.id}"`)}${button(t('Rechazar','Reject'),'reject',`data-id="${r.id}"`)}</div></div>`).join('')||`<p>${t('Todo al día.','You’re up to date.')}</p>`}<small>${t('Actualizado','Updated')}: ${esc(new Date(metrics.generated_at).toLocaleString(lang))}</small>`;
+ box.innerHTML=`<div class="grid"><div><p class="metric">${metrics.pageViews||0}</p><p>${t('Cargas de página','Page views')}</p></div><div><p class="metric">${metrics.accounts}</p><p>${t('Cuentas verificadas','Verified accounts')}</p></div><div><p class="metric">${metrics.pending}</p><p>${t('Solicitudes pendientes','Pending requests')}</p></div></div><h3>${t('Usuarios por rol','Users by role')}</h3><p>${t('Una persona puede tener varios roles.','One person can have several roles.')}</p>${Object.entries(metrics.roles).map(([k,v])=>`<p>${esc(label(k))}: <b>${v}</b></p>`).join('')||`<p>${t('Sin roles adicionales.','No additional roles.')}</p>`}<h3>${t('Preferencias declaradas','Declared preferences')}</h3>${Object.entries(metrics.residence).map(([k,v])=>`<p>${esc(label(k))}: ${v}</p>`).join('')}<h3>${t('Visitas','Visits')}</h3><p>${t(`${metrics.pageViews ?? 0} páginas vistas en este servidor local. Incluye recargas y pruebas; no son visitantes únicos.`,`${metrics.pageViews ?? 0} page views on this local server. Includes reloads and tests; not unique visitors.`)}</p><h3>${t('Solicitudes','Requests')}</h3>${requests.map(r=>`<div class="item"><b>${esc(r.name)}</b> · ${esc(label(r.kind))}<div class="row">${button(t('Aprobar','Approve'),'approve',`data-id="${r.id}"`)}${button(t('Rechazar','Reject'),'reject',`data-id="${r.id}"`)}</div></div>`).join('')||`<p>${t('Todo al día.','You’re up to date.')}</p>`}<small>${t('Actualizado','Updated')}: ${esc(new Date(metrics.generated_at).toLocaleString(lang))}</small>`;
+ const accountsResponse=await fetch('/api/admin/accounts');
+ if(accountsResponse.ok){
+  const {data:accounts}=await accountsResponse.json();
+  const list=document.createElement('section');
+  list.innerHTML=`<h3>${t('Gestionar cuentas','Manage accounts')}</h3>`+accounts.filter(a=>a.id!==user.id).map(account=>`<form class="row status-form" data-id="${esc(account.id)}" data-status="${account.status==='active'?'suspended':'active'}"><span>${esc(account.email)}</span><input name="reason" required maxlength="400" aria-label="${t('Motivo','Reason')}" placeholder="${t('Motivo','Reason')}"><button>${account.status==='active'?t('Suspender','Suspend'):t('Reactivar','Reactivate')}</button></form>`).join('');
+  box.append(list);
+  list.querySelectorAll('form').forEach(form=>form.onsubmit=e=>run(e,async()=>{
+   const response=await fetch('/api/admin/accounts/'+encodeURIComponent(form.dataset.id)+'/status',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:form.dataset.status,reason:new FormData(form).get('reason')})});
+   if(!response.ok)throw Error('Could not change account status');
+   await adminPanel();
+  }));
+ }
+
 }
 app.addEventListener('click',e=>{const b=e.target.closest('[data-action]');if(!b)return;run(null,async()=>{b.disabled=true;try{const a=b.dataset.action;
  if(['login','signup','reset'].includes(a)){view=a;authView();}

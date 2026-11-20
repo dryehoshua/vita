@@ -1,3 +1,4 @@
+import {mountAnalytics} from './analytics.mjs';
 import {mountLoyalty} from './loyalty.mjs';
 import {mountContent} from './content.mjs';
 import express from 'express';
@@ -60,15 +61,38 @@ export async function createDynamoApp({store:provided,table='LaVitaLocal',endpoi
  else if(a==='verify'){await store.transaction(async tx=>{const f=await tx.get('Factors',id);if(!f||f.id!==req.body.factorId)fail(400,'Invalid factor');const step=verifyOtp(f.secret,req.body.code,f.last_step);if(step===null)fail(403,'Invalid code');await tx.put('Factors',id,{...f,verified:true,last_step:step});const s=await tx.get('Sessions',req.session.hash);await tx.put('Sessions',s.hash,{...s,aal2:Date.now()+900000});});data={};}else fail(400,'Invalid action');res.json({data});});
  app.put('/api/avatar',authenticated,express.raw({type:'image/webp',limit:'2mb'}),async(req,res)=>{if(!Buffer.isBuffer(req.body))fail(400,'Image required');let bytes;try{bytes=await sharp(req.body,{limitInputPixels:4000000}).resize(512,512,{fit:'cover'}).webp().toBuffer();}catch{fail(400,'Invalid image');}writeFileSync(join(dataDir,'avatars',req.user.id+'.webp'),bytes,{mode:0o600});res.json({data:{path:req.user.id+'/avatar.webp'}});});
  app.get('/api/avatar',authenticated,(req,res)=>{const p=join(dataDir,'avatars',req.user.id+'.webp');if(!existsSync(p))return res.sendStatus(404);res.type('webp').send(readFileSync(p));});app.delete('/api/avatar',authenticated,(req,res)=>{const p=join(dataDir,'avatars',req.user.id+'.webp');if(existsSync(p))unlinkSync(p);res.json({data:{}});});
+ app.get('/api/admin/accounts',authenticated,async(req,res)=>{
+  admin(req);
+  const accounts=(await store.list('Users')).filter(u=>u.verified).map(({id,email,status,roles})=>({id,email,status,roles}));
+  res.json({data:accounts});
+ });
+ app.patch('/api/admin/accounts/:id/status',authenticated,async(req,res)=>{
+  admin(req);
+  const {status,reason}=req.body;
+  if(!['active','suspended'].includes(status))fail(400,'Invalid status');
+  if(req.params.id===req.user.id)fail(409,'Cannot change own status');
+  const justification=txt(reason,400);
+  await store.transaction(async tx=>{
+   const operator=await tx.get('Users',req.user.id);
+   const account=await tx.get('Users',req.params.id);
+   if(operator?.status!=='active'||!operator.roles.includes('admin'))fail(403,'Administrator required');
+   if(!account?.verified)fail(404,'Account not found');
+   if(account.status===status)return;
+   await tx.put('Users',account.id,{...account,status,session_version:account.session_version+1});
+   const id=randomUUID();
+   await tx.put('Audit',id,{id,actor:operator.id,action:'account_status',subject:account.id,status,reason:justification,created_at:now()});
+  });
+  res.json({ok:true});
+ });
  app.get('/api/admin/organizations',authenticated,async(req,res)=>{admin(req);res.json({data:await store.list('Organizations')});});
  app.get('/dev/mail',(req,res)=>{if(!local||['cf-ray','cf-connecting-ip','forwarded','x-forwarded-for'].some(h=>req.headers[h]))return res.sendStatus(404);const mails=readdirSync(join(dataDir,'mail')).sort().reverse().slice(0,20).map(f=>JSON.parse(readFileSync(join(dataDir,'mail',f))));res.type('html').send('<!doctype html><html lang="es"><meta name="viewport" content="width=device-width"><link rel="stylesheet" href="/account.css"><main><h1>Buzón local / Local mailbox</h1>'+mails.map(m=>`<section class="panel"><b>${escapeHTML(m.to)}</b><p>${escapeHTML(m.purpose)}</p><a href="${escapeHTML(m.url)}">Abrir / Open</a></section>`).join('')+'<a href="/cuenta">Volver / Back</a></main></html>');});
+ mountAnalytics(app,store,local);
  mountContent(app,{store,authenticated,isAdmin,dataDir});
  mountLoyalty(app,{store,authenticated,isAdmin});
  app.get('/api/health',(req,res)=>res.json({ok:true,mode:local?'local':'hosted',database:'DynamoDB'}));
  app.get('/account-config.js',(req,res)=>res.type('js').send(`export const accountConfig=${JSON.stringify({enabled:true,provider:'local',database:'dynamodb',siteUrl:origin,privacyUrl:'/privacidad-local',localMailbox:local,registrationEnabled:local||!!delivery})};`));
  app.get('/privacidad-local',(req,res)=>res.type('html').send('<h1>La Vita · Prueba local</h1><p>Usa datos de prueba. Las cuentas se guardan en DynamoDB Local en esta computadora; las fotos en su almacenamiento local. No se envían correos externos. Este texto no sustituye el aviso para apertura pública.</p><a href="/cuenta">Volver</a>'));
  app.use((req,res,next)=>{res.set('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self'; base-uri 'self'; frame-ancestors 'none'");next();});
- app.use((req,res,next)=>{if(req.method==='GET'&&['/','/cuenta','/panel','/guias','/alojamientos','/ahora','/socialite'].includes(req.path))res.on('finish',()=>{if(res.statusCode!==200)return;const day=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Mexico_City'}).format(new Date()),key=day+':'+req.path;void(async()=>{for(let n=0;n<3;n++){try{await store.transaction(async tx=>{const v=await tx.get('PageViews',key)||{day,path:req.path,count:0};await tx.put('PageViews',key,{...v,count:v.count+1});});return;}catch(e){if(e.status!==409)return;}}})();});next();});
  app.use(express.static(dist,{extensions:['html'],index:'index.html',dotfiles:'deny'}));
  app.use((e,req,res,next)=>res.status(e.status||500).json({error:e.status?e.message:'Request failed',code:e.status===409?'23505':undefined}));
  return {app,store};

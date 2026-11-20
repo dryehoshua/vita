@@ -1,4 +1,4 @@
-const kinds=['business','guide','tour','article'];
+const kinds=['business','guide','tour','article','event','promotion'];
 const areas=['cdmx','metropolitan','teotihuacan'];
 const plain=(value,max=200,required=false)=>{
  if(value===undefined||value===null)value='';
@@ -13,10 +13,23 @@ function object(value,allowed){if(!value||typeof value!=='object'||Array.isArray
 
  function normalize(kind,input,submit=false){
   const common=['title','summary','language','photos'];
-  const specific={article:['body','category','tags','sources'],business:['category','address','phone','website','hours','specialty','menu','services'],guide:['bio','languages','areas','hourlyRateCents','minHours','contactUrl'],tour:['itinerary','meetingPoint','durationMinutes','maxGroup','priceCents','includes','excludes','accessibility','conditions','areas','languages']};
+  const specific={event:['category','day','startTime','endTime','venue','address','website'],promotion:['category','day','endDay','venue','conditions','website'],article:['body','category','tags','sources'],business:['category','address','phone','website','hours','specialty','menu','services'],guide:['bio','languages','areas','hourlyRateCents','minHours','contactUrl'],tour:['itinerary','meetingPoint','durationMinutes','maxGroup','priceCents','includes','excludes','accessibility','conditions','areas','languages']};
   const v=object(input,[...common,...specific[kind]]);
   const doc={title:plain(v.title,160,true),summary:plain(v.summary,600,submit),language:v.language||'es',photos:list(v.photos,12,p=>{object(p,['url','caption','credit','rights']);return {url:plain(p.url,500,true),caption:plain(p.caption,240),credit:plain(p.credit,200,submit),rights:plain(p.rights,300,submit)};})};
   if(!['es','en'].includes(doc.language))fail(400,'Use es or en');
+  if(['event','promotion'].includes(kind)){
+   const calendarDay=(value,required)=>{const d=plain(value,10,required);if(!d)return d;const time=new Date(d+'T12:00:00Z');if(!/^\d{4}-\d{2}-\d{2}$/.test(d)||!Number.isFinite(+time)||time.toISOString().slice(0,10)!==d)fail(400,'Invalid date');return d;};
+   const clock=(value,required)=>{const time=plain(value,5,required);if(time&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(time))fail(400,'Invalid time');return time;};
+   const category=v.category||'entertainment';
+   if(!['food','entertainment','party','music','art','stay','wellness'].includes(category))fail(400,'Invalid category');
+   Object.assign(doc,{category,day:calendarDay(v.day,submit),venue:plain(v.venue,160,submit),website:https(v.website)});
+   if(submit&&!doc.website)fail(400,'A source URL is required');
+   if(kind==='event')Object.assign(doc,{startTime:clock(v.startTime,submit),endTime:clock(v.endTime,submit),address:plain(v.address,300,submit)});
+   else{
+    Object.assign(doc,{endDay:calendarDay(v.endDay,submit),conditions:plain(v.conditions,2000,submit)});
+    if(doc.endDay&&doc.day&&doc.endDay<doc.day)fail(400,'Invalid promotion period');
+   }
+  }
   if(kind==='article')Object.assign(doc,{body:plain(v.body,50000,submit),category:plain(v.category,60),tags:list(v.tags,12,t=>plain(t,40,true)),sources:list(v.sources,20,s=>{object(s,['title','url']);return {title:plain(s.title,200,true),url:https(plain(s.url,2048,true))};})});
   if(kind==='business'){
    const category=v.category||'other';if(!['restaurant','bar','cafe','store','stay','wellness','other'].includes(category))fail(400,'Invalid business category');
