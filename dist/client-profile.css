@@ -1518,3 +1518,18 @@
 .challenge-card p { margin:6px 0 10px; }
 .badge-preview button { font:inherit; min-height:48px; text-align:center; }
 section p { overflow-wrap:anywhere; }
+
+.medal-filters { display: flex; gap: 8px; margin: 0 0 16px; align-items: stretch; }
+.medal-filters select { min-width: 0; flex: 1; min-height: 48px; font: inherit; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding-inline: 9px; }
+.medal-filters [aria-pressed=true] { background: var(--wine); color: #fff; }
+.badge-card small { color: var(--wine); font-weight: 600; }
+.badge-combo { border-color: var(--brass); }
+.badge-art.exclusive-crest { outline: 2px double var(--brass); outline-offset: 3px; }
+.badge-art[data-variant="1"]:not(.locked) { box-shadow: 0 0 0 2px #b59a6a66; }
+.badge-art[data-variant="2"]:not(.locked) { box-shadow: 0 0 0 2px #426c5a99; }
+.badge-art[data-variant="3"]:not(.locked) { box-shadow: 0 0 0 2px #c76c5f99; }
+.badge-art[data-variant="4"]:not(.locked) { box-shadow: 0 0 0 2px #641d3288; }
+.badge-requirements { list-style: none; padding: 0; width: 100%; margin-block: 12px; }
+.badge-requirements li { display: flex; justify-content: space-between; gap: 8px; align-items: center; border-top: 1px solid var(--line); text-align: left; }
+.badge-requirements button { min-height: 48px; text-align: left; }
+.badge-requirements span { font-size: 12px; color: var(--muted); white-space: nowrap; }

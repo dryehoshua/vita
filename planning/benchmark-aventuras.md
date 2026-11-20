@@ -26,3 +26,22 @@ La primera selección de retos incluye **Café pendiente** (dos cafeterías), **
 Exclusive usa promociones publicadas con el grado mínimo aprobado. Las personas con grado insuficiente pueden ver el adelanto, pero los términos y el enlace se entregan solo a cuentas elegibles. No hay una promoción comercial precargada. Para probar visitas culturales, el administrador enlaza un evento publicado al programa del negocio. Para probar brunch, el negocio configura días y horas y un administrador aprueba la ficha.
 
 La transferencia mueve puntos dentro de un mismo programa y cobra cinco puntos en el piloto. Está habilitada para el programa de prueba. Una transferencia no cuenta como visita, condecoración ni reto. El reintento con la misma referencia devuelve el mismo recibo.
+
+## Colección ampliada a 50
+
+Hay **40 medallas de actividad** en cinco grupos: Exploración, Sabores, Vida nocturna, Cultura y Variedad. Las otras **10 son combinaciones exclusivas**. Una combinación exige todas sus medallas previas. El detalle muestra cuáles tienes y cuáles quedan pendientes.
+
+| Exclusiva | Condecoraciones requeridas |
+|---|---|
+| Sunrise to Sunset | Espresso Express + Moonlight Regular |
+| Taco After Dark | Taco Tactician + Beer Knight |
+| Morning Plot Twist | Brunch Bandit + Espresso Express |
+| Culture Shot | Culture Vulture + Espresso Express |
+| Night Royalty | Beer Knight + Lord of the Night + Bar Cartographer |
+| Brunch & Brush | Brunch Bandit + Culture Vulture |
+| Passport With Benefits | Cozy Check-In + Shop Sleuth + Zen Tourist |
+| Condesa Connoisseur | Salsa Sorcerer + Bean Baron + Menu Archaeologist |
+| The Barrio Trifecta | Neighborhood Legend + Culture Vulture + Lord of the Night |
+| Hall of Vita | The Barrio Trifecta + Condesa Connoisseur + Passport With Benefits + Fifty Shades of Condesa |
+
+Las combinaciones son condecoraciones de colección. Las promociones de Exclusive mantienen su regla de grado y vigencia.

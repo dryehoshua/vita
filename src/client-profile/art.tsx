@@ -130,10 +130,14 @@ function BadgeArt({
   kind,
   state,
   compact = false,
+  collectible = '',
+  exclusive = false,
 }: {
   kind: string;
   state: string;
   compact?: boolean;
+  collectible?: string;
+  exclusive?: boolean;
 }) {
   const symbols: Record<string, ReactNode> = {
     foot: (
@@ -196,8 +200,9 @@ function BadgeArt({
       </>
     ),
   };
+  const variant = collectible === kind ? 0 : ([...collectible].reduce((sum,char)=>sum+char.charCodeAt(0),0)%4)+1;
   return (
-    <div className={`badge-art ${kind} ${state} ${compact ? "compact" : ""}`} aria-hidden="true">
+    <div data-variant={variant} className={`badge-art ${kind} ${state} ${compact ? "compact" : ""} ${exclusive ? "exclusive-crest" : ""}`} aria-hidden="true">
       <svg viewBox="0 0 80 80">{symbols[kind]}</svg>
       {state === "locked" && (
         <span className="badge-lock">

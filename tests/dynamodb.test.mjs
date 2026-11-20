@@ -76,3 +76,24 @@ test('profile onboarding, verified visits and transfers remain separate',async()
  const profile2=(await api('/api/client/profile',undefined,sender,'GET')).body.data;
  assert.deepEqual(profile2.profile.interests,['coffee','music']);
 });
+
+test('fifty medals include ten combos that count distinct verified places',async()=>{
+ const {awardBadges}=await import('../server/dynamo/adventure-badges.mjs');
+ const options={total:0,categories:0,dateKey:date=>date};
+ const initial=awardBadges([],options);
+ assert.equal(initial.length,50);
+ assert.equal(new Set(initial.map(m=>m.kind)).size,50);
+ assert.equal(initial.filter(m=>m.group==='exclusive').length,10);
+ assert.ok(initial.every(m=>m.state==='locked'));
+ const bar=i=>({venue:'bar'+i,created_at:'2026-11-20',tags:['bar','nightlife']});
+ const taco=i=>({venue:'taco'+i,created_at:'2026-11-20',tags:['taco','restaurant']});
+ const find=(rows,id)=>rows.find(m=>m.kind===id);
+ const partial=awardBadges([...Array.from({length:5},(_,i)=>bar(i)),...Array.from({length:10},()=>taco(0))],{...options,total:6,categories:2});
+ assert.equal(find(partial,'knight').state,'unlocked');
+ assert.equal(find(partial,'taco').count,1);
+ assert.equal(find(partial,'taco-after-dark').state,'progress');
+ assert.deepEqual(find(partial,'taco-after-dark').requirements.map(m=>m.unlocked),[false,true]);
+ const completed=awardBadges([...Array.from({length:5},(_,i)=>bar(i)),...Array.from({length:5},(_,i)=>taco(i))],{...options,total:10,categories:2});
+ assert.equal(find(completed,'taco-after-dark').state,'unlocked');
+ assert.equal(find(completed,'hall-of-vita').state,'locked');
+});

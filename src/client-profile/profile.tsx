@@ -6,7 +6,7 @@ type Lang='es'|'en';
 type Screen='profile'|'points'|'adventures'|'exclusive'|'qr';
 type Reward={id:string,title:string,cost:number,stock:number};
 type Program={id:string,name:string,balance:number,active:boolean,test:boolean,transferEnabled:boolean,rewards:Reward[]};
-type Badge={kind:string,name:string,count:number,required:number,es:string,en:string,state:string,progress:number,pendingVerification:boolean,categories?:number};
+type Badge={kind:string,art?:string,group?:string,name:string,count:number,required:number,es:string,en:string,state:string,progress:number,categories?:number,requirements?:{kind:string,name:string,unlocked:boolean}[]};
 type Offer={id:string,title:string,summary:string,venue:string,minGrade:string,eligible:boolean,endDay:string,photos?:{url:string}[],conditions?:string,website?:string};
 type Data={
  profile:{id:string,name:string,avatar:string|null,residence:string,interests:string[],onboarded:boolean},
@@ -18,6 +18,11 @@ type Receipt={amount:number,fee:number,balance:number,recipient:string,reference
 const grades:Record<string,[string,string]>={explorer:['Explorador','Explorer'],regular:['Rostro conocido','Local Favorite'],insider:['Insider','Insider'],legend:['Leyenda del barrio','Neighborhood Legend']};
 const activities:Record<string,[string,string]>={food:['Comida','Food'],coffee:['Café','Coffee'],music:['Música','Music'],art:['Arte y cultura','Art & culture'],nightlife:['Vida nocturna','Nightlife'],walks:['Paseos','Walks'],wellness:['Bienestar','Wellness']};
 const visits:Record<string,[string,string]>={tourist:['Estoy de visita','I’m visiting'],cdmx:['Vivo en CDMX','I live in Mexico City'],'roma-condesa':['Vivo en Roma-Condesa','I live in Roma-Condesa'],unspecified:['Prefiero no decir','Prefer not to say']};
+const medalGroups:Record<string,[string,string]>={
+ all:['Todas las colecciones','All collections'],exclusive:['Combinaciones exclusivas','Exclusive combos'],
+ exploration:['Exploración','Exploration'],flavors:['Sabores','Flavors'],nightlife:['Vida nocturna','Nightlife'],
+ culture:['Cultura','Culture'],variety:['Variedad','Variety'],
+};
 const signed=(n:number)=>(n>0?'+':'')+n;
 const choice=(lang:Lang,pair:[string,string])=>pair[lang==='en'?1:0];
 async function api(path:string,body?:unknown,method=body===undefined?'GET':'POST'){
@@ -38,6 +43,8 @@ function App(){
  const [onboarding,setOnboarding]=useState(false);
  const [transfer,setTransfer]=useState(false);
  const [badge,setBadge]=useState<Badge>();
+ const [medalGroup,setMedalGroup]=useState('all');
+ const [earnedOnly,setEarnedOnly]=useState(false);
  const [offer,setOffer]=useState<Offer>();
  const t=(es:string,en:string)=>choice(lang,[es,en]);
  async function refresh(){const data:Data=await api('/api/client/profile');setState(data);setError(undefined);return data;}
@@ -50,6 +57,7 @@ function App(){
  const header=(back?:()=>void)=><header className="topbar">{back?<button className="icon-btn" aria-label={t('Volver','Back')} onClick={back}><Icon name="arrow"/></button>:<a href="/" aria-label={t('Explorar La Vita','Explore La Vita')}><Brand/></a>}<div className="profile-header-actions"><a href="/cuenta" aria-label={t('Ajustes de cuenta','Account settings')}>⚙</a><button className="language" onClick={()=>setLang(lang==='es'?'en':'es')}>{lang.toUpperCase()} <span>/ {lang==='es'?'EN':'ES'}</span></button></div></header>;
  if(!state)return <div className="app-shell"><main className="page">{header()}<h1>{t('Mi perfil','My profile')}</h1>{error===401?<a className="btn primary" href="/cuenta">{t('Iniciar sesión','Sign in')}</a>:error?<><p role="alert">{t('El perfil no está disponible.','Your profile is unavailable.')}</p><button className="btn primary" onClick={open}>{t('Reintentar','Retry')}</button></>:<p role="status">{t('Cargando…','Loading…')}</p>}</main></div>;
  const unlocked=state.badges.filter(b=>b.state==='unlocked');
+ const visibleBadges=state.badges.filter(b=>(medalGroup==='all'||b.group===medalGroup)&&(!earnedOnly||b.state==='unlocked'));
  const featured=state.offers.find(o=>o.eligible)||state.offers[0];
  const next=state.badges.filter(x=>x.state!=='unlocked').sort((a,b)=>b.progress-a.progress)[0];
  const gradeText=state.nextGrade
@@ -65,7 +73,7 @@ function App(){
   <section className="balance-card"><div className="balance-top"><div><span className="eyebrow light">{t('Saldo disponible','Available balance')}</span><strong className="balance-number">{program?.balance||0} <small>pts</small></strong></div><div className="seal">LV</div></div><div className="program-select">{selectProgram}</div></section>
   <button className="btn primary qr-cta" disabled={!program?.active} onClick={()=>go('qr')}><Icon name="qr"/>{t('Mostrar QR','Show QR')}<Icon name="arrow"/></button>
   <div className="split-actions"><button className="btn secondary" disabled={!program?.transferEnabled} onClick={()=>{go('points');setTransfer(true);}}><Icon name="swap"/>{t('Transferir puntos','Transfer points')}</button><button className="btn secondary" onClick={()=>go('points')}><Icon name="receipt"/>{t('Movimientos','Activity')}</button></div>
-  <section className="module"><div className="section-heading"><h2>My Adventures</h2><button className="text-link" onClick={()=>go('adventures')}>{t('Ver colección','See collection')}</button></div><div className="badge-preview">{(unlocked.length?unlocked:state.badges).slice(0,3).map(b=><button key={b.kind} onClick={()=>setBadge(b)}><BadgeArt kind={b.kind} state={b.state} compact/><span>{b.name}</span></button>)}{next&&<button className="next-badge" onClick={()=>setBadge(next)}><strong>{next.name}</strong><span>{next.count} / {next.required}</span></button>}</div></section>
+  <section className="module"><div className="section-heading"><h2>My Adventures</h2><button className="text-link" onClick={()=>go('adventures')}>{t('Ver colección','See collection')}</button></div><div className="badge-preview">{(unlocked.length?unlocked:state.badges).slice(0,3).map(b=><button key={b.kind} onClick={()=>setBadge(b)}><BadgeArt kind={b.art||b.kind} state={b.state} collectible={b.kind} exclusive={Boolean(b.requirements)} compact/><span>{b.name}</span></button>)}{next&&<button className="next-badge" onClick={()=>setBadge(next)}><strong>{next.name}</strong><span>{next.count} / {next.required}</span></button>}</div></section>
   <section className="module promo-mini"><div className="section-heading"><h2>Exclusive</h2><button className="text-link" onClick={()=>go('exclusive')}>{t('Ver promociones','See offers')}</button></div>{featured?<button className="promo-strip" onClick={()=>setOffer(featured)}><img src={featured.photos?.[0]?.url||'/assets/la-vita-cafe.png'} alt=""/><span><small>{featured.eligible?t('Disponible','Available'):grade(featured.minGrade)}</small><strong>{featured.title}</strong></span><Icon name="chevron"/></button>:<p className="collection-note">{t('Todavía no hay promociones exclusivas vigentes.','No exclusive offers are currently available.')}</p>}</section>
   <section className="module"><button className="text-link" onClick={()=>setOnboarding(true)}>{t('Mis preferencias','My preferences')}</button></section>
  </>}
@@ -75,14 +83,31 @@ function App(){
  </>}
  {screen==='adventures'&&<><div className="title-block"><h1>My Adventures</h1><p>{t('Cada visita verificada deja una huella.','Every verified visit leaves a mark.')}</p></div><section className="grade-card">{gradePill}<Progress value={Math.min(100,state.total/state.target*100)} label={gradeText}/></section>
   <div className="collection-heading"><h2>{t('Tu vitrina','Your collection')}</h2><span>{unlocked.length} / {state.badges.length}</span></div>
-  <div className="badge-grid">{state.badges.map(b=><button key={b.kind} className={`badge-card ${b.state}`} onClick={()=>setBadge(b)}><BadgeArt kind={b.kind} state={b.state}/><strong>{b.name}</strong><span className="state-label">{b.state==='unlocked'?t('Obtenida','Unlocked'):`${b.count} / ${b.required}`}</span></button>)}</div>
+  <div className="medal-filters">
+   <select aria-label={t('Colección','Collection')} value={medalGroup} onChange={e=>setMedalGroup(e.target.value)}>
+    {Object.entries(medalGroups).map(([key,value])=><option key={key} value={key}>{choice(lang,value)}</option>)}
+   </select>
+   <button className="btn secondary" aria-pressed={earnedOnly} onClick={()=>setEarnedOnly(!earnedOnly)}>{t('Obtenidas','Earned')}</button>
+  </div>
+  {!visibleBadges.length&&<p className="collection-note">{t('Todavía no hay medallas obtenidas en esta colección.','No medals earned in this collection yet.')}</p>}
+  <div className="badge-grid">{visibleBadges.map(b=><button key={b.kind} className={`badge-card ${b.state} ${b.requirements?'badge-combo':''}`} onClick={()=>setBadge(b)}><BadgeArt kind={b.art||b.kind} state={b.state} collectible={b.kind} exclusive={Boolean(b.requirements)}/><strong>{b.name}</strong>{b.requirements&&<small>{t('Exclusiva','Exclusive')}</small>}<span className="state-label">{b.state==='unlocked'?t('Obtenida','Unlocked'):`${Math.min(b.count,b.required)} / ${b.required}`}</span></button>)}</div>
   <section className="module"><h2>{t('Retos del mes','Monthly challenges')}</h2>{[...state.challenges].sort((a,b)=>Number(b.interests.some(k=>state.profile.interests.includes(k)))-Number(a.interests.some(k=>state.profile.interests.includes(k)))).map(c=><div className="challenge-card" key={c.id}><strong>{c[lang]}</strong><p>{c.id==='cafe'?t('Visita dos cafeterías distintas.','Visit two different cafés.'):c.id==='night'?t('Visita dos lugares nocturnos distintos.','Visit two different nightlife spots.'):t('Visita tres lugares distintos.','Visit three different places.')}</p><Progress value={Math.min(100,c.count/c.target*100)} label={c.complete?t('Completado','Complete'):`${c.count} / ${c.target} · ${c.month}`}/></div>)}</section>
  </>}
  {screen==='exclusive'&&<><div className="title-block"><h1>Exclusive</h1>{gradePill}</div>{[true,false].map(eligible=><section className="module" key={String(eligible)}><h2>{eligible?t('Disponibles','Available'):t('Por desbloquear','To unlock')}</h2>{state.offers.filter(o=>o.eligible===eligible).map(o=><button key={o.id} className="promo-strip" onClick={()=>setOffer(o)}><img alt="" src={o.photos?.[0]?.url||'/assets/la-vita-cafe.png'}/><span><small>{grade(o.minGrade)}</small><strong>{o.title}</strong><em>{o.venue}</em></span><Icon name={eligible?'chevron':'lock'}/></button>)}{!state.offers.some(o=>o.eligible===eligible)&&<p>{t('Sin promociones en esta sección.','No offers in this section.')}</p>}</section>)}</>}
  </main>
  <nav className="bottom-nav" aria-label={t('Perfil y recompensas','Profile and rewards')}>{(['profile','points','adventures','exclusive'] as const).map((x,i)=><button key={x} aria-current={x===screen?'page':undefined} className={x===screen?'active':''} onClick={()=>go(x)}><Icon name={(['home','swap','medal','spark'] as const)[i]}/><span>{[t('Perfil','Profile'),t('Puntos','Points'),'Adventures','Exclusive'][i]}</span></button>)}</nav>
  {(!state.profile.onboarded||onboarding)&&<Preferences key={String(onboarding)} lang={lang} profile={state.profile} close={async()=>{await refresh();setOnboarding(false);}}/>}
- {badge&&<Sheet close={()=>setBadge(undefined)} lang={lang}><BadgeArt kind={badge.kind} state={badge.state}/><h2>{badge.name}</h2><p>{badge[lang]}</p><Progress value={badge.progress} label={`${badge.count} / ${badge.required}`}/>{badge.kind==='legend'&&<p>{badge.categories} / 5 {t('categorías','categories')}</p>}{badge.pendingVerification&&<p>{t('La verificación para esta medalla aún no está disponible.','Verification for this badge isn’t available yet.')}</p>}</Sheet>}
+ {badge&&<Sheet close={()=>setBadge(undefined)} lang={lang}>
+  <BadgeArt kind={badge.art||badge.kind} state={badge.state} collectible={badge.kind} exclusive={Boolean(badge.requirements)}/>
+  {badge.requirements&&<span className="state-label">{t('Combinación exclusiva','Exclusive combination')}</span>}
+  <h2>{badge.name}</h2><p>{badge[lang]}</p>
+  <Progress value={badge.progress} label={`${Math.min(badge.count,badge.required)} / ${badge.required}`}/>
+  {badge.kind==='legend'&&<p>{Math.min(badge.categories||0,5)} / 5 {t('categorías','categories')}</p>}
+  {badge.requirements&&<ul className="badge-requirements">{badge.requirements.map(r=><li key={r.kind}>
+   <button type="button" className="text-link" onClick={()=>setBadge(state.badges.find(b=>b.kind===r.kind))}>{r.name}</button>
+   <span>{r.unlocked?t('Obtenida','Earned'):t('Pendiente','Not earned')}</span>
+  </li>)}</ul>}
+ </Sheet>}
  {offer&&<Sheet close={()=>setOffer(undefined)} lang={lang}><h2>{offer.title}</h2><p>{offer.venue} · {grade(offer.minGrade)}</p><p>{offer.summary}</p><p>{t('Vigente hasta','Available through')} {offer.endDay}</p>{offer.eligible?<><p>{offer.conditions}</p>{offer.website&&<a className="btn secondary" href={offer.website} target="_blank" rel="noreferrer">{t('Ver condiciones oficiales','See official terms')}</a>}</>:<p>{t('Desbloquea este beneficio al alcanzar','Unlock this offer when you reach')} {grade(offer.minGrade)}.</p>}</Sheet>}
  </div>;
 }

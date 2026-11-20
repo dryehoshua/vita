@@ -1,3 +1,4 @@
+import {awardBadges} from './adventure-badges.mjs';
 import {businessVisit} from './visit-context.mjs';
 import {digest} from '../security.mjs';
 
@@ -9,16 +10,6 @@ const fee=5;
 const fail=(status,message)=>{throw Object.assign(new Error(message),{status});};
 const uuid=value=>typeof value==='string'&&/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(value);
 
-const definitions=[
- ['foot','First Footprint',1,'Verifica tu primera visita.','Verify your first visit.'],
- ['knight','Beer Knight',5,'Visita 5 bares distintos.','Visit 5 different bars.','bar'],
- ['night','Lord of the Night',10,'Visita 10 lugares nocturnos distintos.','Visit 10 different nightlife spots.','nightlife'],
- ['taco','Taco Tactician',5,'Visita 5 taquerías distintas.','Visit 5 different taco spots.','taco'],
- ['coffee','Espresso Express',4,'Visita 4 cafeterías distintas.','Visit 4 different cafés.','cafe'],
- ['culture','Culture Vulture',3,'Asiste a 3 eventos culturales distintos.','Attend 3 different cultural events.','culture'],
- ['brunch','Brunch Bandit',3,'Visita 3 lugares de brunch en su horario.','Visit 3 brunch spots during brunch hours.','brunch'],
- ['legend','Neighborhood Legend',25,'Visita 25 lugares en 5 categorías.','Visit 25 places across 5 categories.'],
-];
 function progress(visits,filter=()=>true){
  const unique=new Set(visits.filter(filter).map(v=>v.venue));
  return unique.size;
@@ -28,15 +19,7 @@ function summary(visits,now){
  const categories=new Set(visits.map(v=>v.category).filter(Boolean)).size;
  const grade=total>=25&&categories>=5?3:total>=10?2:total>=5?1:0;
  const target=[5,10,25,25][grade];
- const badges=definitions.map(([kind,name,required,es,en,tag])=>{
-  const matches=visits.filter(v=>!tag||v.tags.includes(tag));
-  const count=kind==='culture'?new Set(visits.map(v=>v.eventId).filter(Boolean)).size:progress(matches);
-  const unlocked=count>=required&&(kind!=='legend'||categories>=5);
-  return {kind,name,required,es,en,count,state:unlocked?'unlocked':count?'progress':'locked',
-   progress:Math.min(100,Math.round(100*count/required)),
-   ...(kind==='legend'?{categories}:{}),
-   pendingVerification:false};
- });
+ const badges=awardBadges(visits,{total,categories,dateKey:value=>formatDay.format(new Date(value))});
  const month=formatDay.format(now).slice(0,7);
  const current=visits.filter(v=>formatDay.format(new Date(v.created_at)).startsWith(month));
  const challenges=[
