@@ -1,6 +1,8 @@
 import React,{useEffect,useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import QRCode from 'qrcode';
+import {avatarTypes,encodeAvatar,saveAvatar} from '../accounts/avatar.js';
+import {createClient} from '../accounts/local-client.js';
 import {Brand,Icon,Progress,BadgeArt} from './art';
 type Lang='es'|'en';
 type Screen='profile'|'points'|'adventures'|'exclusive'|'qr';
@@ -114,7 +116,7 @@ function App(){
  {screen==='exclusive'&&<><div className="title-block"><h1>Exclusive</h1>{gradePill}</div>{[true,false].map(eligible=><section className="module" key={String(eligible)}><h2>{eligible?t('Disponibles','Available'):t('Por desbloquear','To unlock')}</h2>{state.offers.filter(o=>o.eligible===eligible).map(o=><button key={o.id} className="promo-strip" onClick={()=>setOffer(o)}><img alt="" src={o.photos?.[0]?.url||'/assets/la-vita-cafe.png'}/><span><small>{grade(o.minGrade)}</small><strong>{o.title}</strong><em>{o.venue}</em></span><Icon name={eligible?'chevron':'lock'}/></button>)}{!state.offers.some(o=>o.eligible===eligible)&&<p>{t('Sin promociones en esta sección.','No offers in this section.')}</p>}</section>)}</>}
  </main>
  <nav className="bottom-nav" aria-label={t('Perfil y recompensas','Profile and rewards')}>{(['profile','points','adventures','exclusive'] as const).map((x,i)=><button key={x} aria-current={x===screen?'page':undefined} className={x===screen?'active':''} onClick={()=>go(x)}><Icon name={(['home','swap','medal','spark'] as const)[i]}/><span>{[t('Perfil','Profile'),t('Puntos','Points'),'Adventures','Exclusive'][i]}</span></button>)}</nav>
- {(!state.profile.onboarded||onboarding)&&<Preferences key={String(onboarding)} lang={lang} profile={state.profile} close={async()=>{await refresh();setOnboarding(false);}}/>}
+ {(!state.profile.onboarded||onboarding)&&<Preferences key={String(onboarding)} tour={!state.profile.onboarded} lang={lang} profile={state.profile} close={async()=>{await refresh();setOnboarding(false);}}/>}
  {badge&&<Sheet close={()=>setBadge(undefined)} lang={lang}>
   <BadgeArt kind={badge.art||badge.kind} state={badge.state} collectible={badge.kind} exclusive={Boolean(badge.requirements)}/>
   {badge.requirements&&<span className="state-label">{t('Combinación exclusiva','Exclusive combination')}</span>}
@@ -145,16 +147,22 @@ function MissionBoard({missions,lang,refresh}:{missions:Mission[],lang:Lang,refr
  }
  return <section className="module missions-board" aria-label={t('Misiones de barrio','Neighborhood missions')}>
   <div className="section-heading">
-   <div><h2>{t('Misiones de barrio','Neighborhood missions')}</h2>
-    <p>{active?`${active[lang]} · ${active.count}/${active.target}`:t(`${completed} de ${missions.length} completadas`,`${completed} of ${missions.length} completed`)}</p></div>
+   <div className="mission-preview">
+    <span aria-hidden className="mission-animal mission-animal-mini" data-mission={(active||ordered[0]).id}/>
+    <div><h2>{t('Misiones de barrio','Neighborhood missions')}</h2>
+    <p>{active?`${active[lang]} · ${active.count}/${active.target}`:t(`${completed} de ${missions.length} completadas`,`${completed} of ${missions.length} completed`)}</p></div></div>
    <button className="text-link" aria-expanded={expanded} onClick={()=>setExpanded(!expanded)}>{expanded?t('Ocultar','Hide'):t('Ver misiones','See missions')}</button>
   </div>
   {expanded&&<div className="missions-list">
    <p>{t('Elige un plan sin fecha límite. Cuenta desde que lo inicias.','Choose a plan with no deadline. Visits count from when you start.')}</p>
    {ordered.map(m=><article className="challenge-card" key={m.id}>
-    <strong>{m[lang]}</strong>
-    {!m.startedAt&&m.suggested&&<span className="mission-label">{t('Para ti','For you')}</span>}
-    <p>{lang==='es'?m.detailEs:m.detailEn}</p>
+    <div className="mission-card-intro">
+     <div><strong>{m[lang]}</strong>
+      {!m.startedAt&&m.suggested&&<span className="mission-label">{t('Para ti','For you')}</span>}
+      <p>{lang==='es'?m.detailEs:m.detailEn}</p>
+     </div>
+     <span aria-hidden className="mission-animal" data-mission={m.id}/>
+    </div>
     <Progress value={m.count/m.target*100} label={m.complete?t('Completada','Completed'):`${m.count} / ${m.target}`}/>
     {!m.complete&&(m.active
      ?<button className="text-link" disabled={pending} onClick={()=>select(null)}>{t('Quitar del resumen','Unpin')}</button>
@@ -169,16 +177,80 @@ function Sheet({close,lang,children}:{close:()=>void,lang:Lang,children:React.Re
  useEffect(()=>{ref.current?.showModal();},[]);
  return <dialog ref={ref} className="vita-sheet" onCancel={close}><section className="detail-sheet"><button className="sheet-close" onClick={close} aria-label={choice(lang,['Cerrar','Close'])}><Icon name="close"/></button>{children}</section></dialog>;
 }
-function Preferences({lang,profile,close}:{lang:Lang,profile:Data['profile'],close:()=>Promise<void>}){
+const tourSections=[
+ {icon:'home',title:['Explorar y cuponera','Explore & coupons'],detail:['Busca lugares y experiencias. Abre la cuponera para ver promociones.','Find places and experiences. Open the coupon carousel for deals.']},
+ {icon:'clock',title:['Sucediendo ahora','Happening now'],detail:['Consulta qué eventos están en curso y cuáles vienen después.','See what’s on now and what’s coming up.']},
+ {icon:'search',title:['Guías y alojamientos','Guides & stays'],detail:['Encuentra un guía para recorrer CDMX o un lugar para hospedarte.','Find a guide to explore Mexico City or a place to stay.']},
+ {icon:'receipt',title:['Socialité','Socialité'],detail:['Lee historias y perfiles de la comunidad.','Read stories and profiles from the local community.']},
+ {icon:'qr',title:['Mi QR y puntos','My QR & points'],detail:['Muestra tu QR en un lugar participante para sumar puntos o canjear. También puedes transferir puntos desde tu perfil.','Show your QR at participating venues to earn or redeem points. You can also transfer points from your profile.']},
+ {icon:'medal',title:['My Adventures y Exclusive','My Adventures & Exclusive'],detail:['Completa retos, gana medallas y desbloquea promociones según tu grado.','Complete challenges, earn medals and unlock offers as you rank up.']},
+] as const;
+
+function Preferences({lang,profile,close,tour}:{lang:Lang,profile:Data['profile'],close:()=>Promise<void>,tour:boolean}){
+ const [step,setStep]=useState(tour?0:1);
  const [residence,setResidence]=useState(profile.residence);
  const [interests,setInterests]=useState(profile.interests);
+ const [photo,setPhoto]=useState<Blob>();
+ const [preview,setPreview]=useState('');
  const [busy,setBusy]=useState(false);
  const [error,setError]=useState('');
  const t=(es:string,en:string)=>choice(lang,[es,en]);
  const ref=React.useRef<HTMLDialogElement>(null);
+ const heading=React.useRef<HTMLHeadingElement>(null);
  useEffect(()=>{ref.current?.showModal();},[]);
- async function save(skip=false){setBusy(true);setError('');try{await api('/api/client/onboarding',{residence:skip?profile.residence:residence,interests:skip?profile.interests:interests},'PUT');await close();}catch(e){setError(alertCopy(lang,e));}finally{setBusy(false);}}
- return <dialog ref={ref} className="vita-sheet" onCancel={e=>e.preventDefault()} aria-label={t('Mis preferencias','My preferences')}><section className="detail-sheet preference-sheet"><h2>{t('¿Qué plan se te antoja?','What are you in the mood for?')}</h2><label>{t('¿De dónde nos visitas?','Where are you visiting from?')}<select value={residence} onChange={e=>setResidence(e.target.value)}>{Object.entries(visits).map(([key,name])=><option key={key} value={key}>{choice(lang,name)}</option>)}</select></label><p>{t('Elige hasta cuatro intereses para ordenar tus retos.','Pick up to four interests to sort your challenges.')}</p><div className="interest-grid">{Object.entries(activities).map(([key,name])=><button key={key} type="button" className="btn secondary" aria-pressed={interests.includes(key)} disabled={!interests.includes(key)&&interests.length>=4} onClick={()=>setInterests(pre=>pre.includes(key)?pre.filter(x=>x!==key):[...pre,key])}>{choice(lang,name)}</button>)}</div>{error&&<p role="alert">{error}</p>}<button className="btn primary" disabled={busy} onClick={()=>save()}>{t('Guardar y continuar','Save and continue')}</button><button className="text-link" disabled={busy} onClick={()=>save(true)}>{t('Por ahora no','Skip for now')}</button></section></dialog>;
+ useEffect(()=>{heading.current?.focus();},[step]);
+ useEffect(()=>{
+  if(!photo)return;
+  const url=URL.createObjectURL(photo);
+  setPreview(url);
+  return ()=>URL.revokeObjectURL(url);
+ },[photo]);
+ function move(next:number){setError('');setStep(next);}
+ async function selectPhoto(file:File){
+  setBusy(true);setError('');
+  try{setPhoto(await encodeAvatar(file));}
+  catch{setError(t('Elige una imagen JPG, PNG o WebP de hasta 5 MB.','Choose a JPG, PNG or WebP image up to 5 MB.'));}
+  finally{setBusy(false);}
+ }
+ async function next(){
+  setBusy(true);setError('');
+  try{
+   if(step===0){
+    if(photo)await saveAvatar(createClient(),profile.id,photo);
+    move(1);
+    return;
+   }
+   await api('/api/client/onboarding',{residence,interests},'PUT');
+   await close();
+  }catch(e){setError(alertCopy(lang,e));}finally{setBusy(false);}
+ }
+ const title=step===0?t('Ponle cara a tu perfil','Make it your profile'):step===1?t('¿Qué plan se te antoja?','What are you in the mood for?'):t('Tu guía rápida de La Vita','Your quick guide to La Vita');
+ return <dialog ref={ref} className="vita-sheet" onCancel={e=>{e.preventDefault();if(!tour&&!busy)void close();}} aria-labelledby="onboarding-title">
+  <section className="detail-sheet preference-sheet onboarding-sheet">
+   {tour&&<p className="onboarding-count">{t('Paso','Step')} {step+1}/3</p>}
+   <h2 id="onboarding-title" ref={heading} tabIndex={-1}>{title}</h2>
+   {step===0&&<>
+    <p>{t('Agrega una foto para personalizar tu cuenta. Puedes cambiarla después.','Add a photo to personalize your account. You can change it later.')}</p>
+    <div className="onboarding-avatar">{preview||profile.avatar?<img src={preview||profile.avatar||''} alt={t('Vista previa de tu foto','Preview of your photo')}/>:<span aria-hidden>{Array.from(profile.name)[0]?.toUpperCase()}</span>}</div>
+    <label className="onboarding-upload">
+     <span>{t('Elegir foto','Choose a photo')}</span>
+     <input type="file" accept={avatarTypes.join(',')} disabled={busy} onChange={e=>{const file=e.currentTarget.files?.[0];e.currentTarget.value='';if(file)void selectPhoto(file);}}/>
+    </label>
+   </>}
+   {step===1&&<>
+    <label>{t('¿De dónde nos visitas?','Where are you visiting from?')}<select value={residence} onChange={e=>setResidence(e.target.value)}>{Object.entries(visits).map(([key,name])=><option key={key} value={key}>{choice(lang,name)}</option>)}</select></label>
+    <p>{t('Elige hasta cuatro intereses para personalizar tus retos.','Pick up to four interests to personalize your challenges.')}</p>
+    <div className="interest-grid">{Object.entries(activities).map(([key,name])=><button key={key} type="button" className="btn secondary" aria-pressed={interests.includes(key)} disabled={!interests.includes(key)&&interests.length>=4} onClick={()=>setInterests(pre=>pre.includes(key)?pre.filter(x=>x!==key):[...pre,key])}>{choice(lang,name)}</button>)}</div>
+   </>}
+   {step===2&&<ul className="onboarding-guide">{tourSections.map(item=><li key={item.icon}><span className="onboarding-icon"><Icon name={item.icon}/></span><div><strong>{t(...item.title)}</strong><p>{t(...item.detail)}</p></div></li>)}</ul>}
+   {error&&<p role="alert">{error}</p>}
+   <button className="btn primary" disabled={busy} onClick={()=>tour&&step===1?move(2):void next()}>
+    {busy?t('Un momento…','One moment…'):step===0?(photo?t('Guardar foto y continuar','Save photo and continue'):profile.avatar?t('Conservar mi foto','Keep my photo'):t('Continuar sin foto','Continue without a photo')):step===2?t('Ir a mi perfil','Go to my profile'):tour?t('Continuar','Continue'):t('Guardar preferencias','Save preferences')}
+   </button>
+   {tour&&step>0&&<button className="text-link" disabled={busy} onClick={()=>move(step-1)}>{t('Atrás','Back')}</button>}
+   {!tour&&<button className="text-link" disabled={busy} onClick={()=>void close()}>{t('Cancelar','Cancel')}</button>}
+  </section>
+ </dialog>;
 }
 function Pass({program,lang,refresh}:{program:Program,lang:Lang,refresh:()=>Promise<Data>}){
  const [mode,setMode]=useState<'earn'|'redeem'>('earn');

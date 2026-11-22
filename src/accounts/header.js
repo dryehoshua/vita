@@ -34,8 +34,10 @@ if(accountsEnabled){
  try{
   const {data:{session},error}=await client.auth.getSession();if(error)throw error;
   if(session){const {data,error:identityError}=await client.auth.getUser();if(identityError)throw identityError;
-   const [profile,entries]=await Promise.all([client.from('profiles').select('display_name').eq('id',data.user.id).single(),client.from('point_entries').select('program,delta')]);
-   if(profile.error||entries.error)throw profile.error||entries.error;member={name:profile.data.display_name|| (english()?'My account':'Mi cuenta'),wallets:totals(entries.data)};
+   const [profile,entries]=await Promise.all([client.from('profiles').select('display_name,onboarded').eq('id',data.user.id).single(),client.from('point_entries').select('program,delta')]);
+   if(profile.error||entries.error)throw profile.error||entries.error;
+   if(location.pathname==='/'&&profile.data.onboarded===false){location.replace('/perfil');return;}
+   member={name:profile.data.display_name|| (english()?'My account':'Mi cuenta'),wallets:totals(entries.data)};
   }
  }catch{failed=true;}
  refreshAccountHeader();

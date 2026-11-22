@@ -1546,3 +1546,29 @@ section p { overflow-wrap:anywhere; }
 .missions-board .challenge-card .btn { width: auto; margin-top: 8px; }
 .missions-list > p { margin-top: 10px; }
 .mission-label { margin-left: 8px; color: var(--wine); font-size: 12px; }
+
+.onboarding-sheet { display:grid; gap:12px; padding-inline:20px; }
+.onboarding-count { color:var(--wine); font-size:.78rem; font-weight:700; margin:0; }
+.onboarding-sheet h2:focus { outline:none; }
+.onboarding-avatar { justify-self:center; width:88px; height:88px; border-radius:50%; display:grid; place-items:center; overflow:hidden; color:var(--wine); background:#f1e2e4; font:700 2rem "Bodoni Moda",serif; }
+.onboarding-avatar img { width:100%; height:100%; object-fit:cover; }
+.onboarding-sheet .onboarding-upload { width:auto; justify-self:center; position:relative; border:1px solid var(--wine); border-radius:12px; color:var(--wine); padding:12px 18px; cursor:pointer; font-weight:700; }
+.onboarding-upload:focus-within { outline:2px solid var(--wine); outline-offset:3px; }
+.onboarding-upload input { position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:pointer; }
+.onboarding-guide { list-style:none; padding:0; margin:0; display:grid; gap:10px; text-align:left; }
+.onboarding-guide li { display:grid; grid-template-columns:36px 1fr; align-items:start; gap:10px; }
+.onboarding-icon { display:grid; place-items:center; width:36px; height:36px; background:#f1e2e4; color:var(--wine); border-radius:10px; }
+.onboarding-guide strong { display:block; font-size:.88rem; }
+.onboarding-guide p { margin:2px 0 0; color:var(--muted); font-size:.82rem; line-height:1.4; }
+
+.mission-preview { display:flex; align-items:center; min-width:0; gap:8px; }
+.mission-animal { display:block; width:74px; aspect-ratio:1; flex-shrink:0; background:url('/assets/mission-animals.webp') no-repeat; background-size:300% 100%; }
+.mission-animal-mini { width:42px; }
+.mission-animal[data-mission="coffee-trail"] { background-position:50% 0; }
+.mission-animal[data-mission="mix-it-up"] { background-position:100% 0; }
+.mission-card-intro { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+.mission-card-intro .mission-animal { border-radius:18px; background-color:#f5e9e7; }
+@media (max-width:360px) {
+  .mission-animal-mini { width:32px; }
+  .mission-card-intro .mission-animal { width:63px; }
+}

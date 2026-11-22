@@ -1,3 +1,4 @@
+import {encodeAvatar,saveAvatar} from './avatar.js';
 import {createClient} from './local-client.js';
 import {safePath,escapeHTML as esc,validConfig,totals,spaces} from './core.js';
 // Loaded at runtime so deployment configuration never requires rebuilding vendor code.
@@ -105,7 +106,12 @@ async function load(){
  user=check(await client.auth.getUser()).user;
  if(!user){authView();return;}
  [profile,roles,members]=await Promise.all([client.from('profiles').select('*').eq('id',user.id).single().then(check),client.from('global_roles').select('role').then(check),client.from('memberships').select('organization_id,role,active,organizations(name)').eq('user_id',user.id).then(check)]);
- if(recovery){authView();return;}await dashboard();
+ if(recovery){authView();return;}
+ const route=new URLSearchParams(location.search);
+ if(profile.onboarded===false&&!roles.length&&!members.some(m=>m.active)&&(!location.search||route.get('view')==='registro')){
+  location.replace('/perfil');return;
+ }
+ await dashboard();
  if(new URLSearchParams(location.search).get('solicitud')==='1')say('Tu solicitud de acceso está en revisión.','Your access request is under review.');
  if(new URLSearchParams(location.search).get('view')==='analytics'&&roles.some(r=>r.role==='admin')){await adminPanel();$('#admin-panel').scrollIntoView();}
 }
@@ -116,7 +122,7 @@ async function dashboard(){
  $('#profile-form').onsubmit=e=>run(e,async()=>{const f=new FormData(e.target);check(await client.from('profiles').update({display_name:String(f.get('name')).trim(),residence:f.get('residence'),language:lang}).eq('id',user.id));say('Perfil guardado.','Profile saved.');});
  $('#request-form').onsubmit=e=>run(e,async()=>{const f=new FormData(e.target);check(await client.from('access_requests').insert({user_id:user.id,kind:f.get('kind'),name:String(f.get('name')).trim()}));await load();say('Solicitud enviada a revisión.','Request sent for review.');});
  document.querySelectorAll('.team-form').forEach(form=>form.onsubmit=e=>run(e,async()=>{const f=new FormData(form);check(await client.rpc('set_team_member',{org:form.dataset.org,member_email:f.get('email'),enabled:f.get('enabled')==='true'}));say('Acceso del equipo actualizado.','Team access updated.');}));
- $('#avatar-form').onsubmit=e=>run(e,async()=>{const file=new FormData(e.target).get('photo');if(!['image/jpeg','image/png','image/webp'].includes(file?.type)||file.size>5*1024*1024)throw Error('Invalid photo');const bitmap=await createImageBitmap(file);if(bitmap.width*bitmap.height>40000000){bitmap.close();throw Error('Photo too large');}const canvas=document.createElement('canvas');canvas.width=canvas.height=512;const side=Math.min(bitmap.width,bitmap.height);canvas.getContext('2d').drawImage(bitmap,(bitmap.width-side)/2,(bitmap.height-side)/2,side,side,0,0,512,512);bitmap.close();const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/webp',.85));if(!blob)throw Error('Photo conversion');const path=user.id+'/avatar.webp';check(await client.storage.from('avatars').upload(path,blob,{upsert:true,contentType:'image/webp'}));check(await client.from('profiles').update({avatar_path:path}).eq('id',user.id));await load();say('Foto actualizada.','Photo updated.');});
+ $('#avatar-form').onsubmit=e=>run(e,async()=>{const file=new FormData(e.target).get('photo');await saveAvatar(client,user.id,await encodeAvatar(file));await load();say('Foto actualizada.','Photo updated.');});
  if(profile.avatar_path){const signed=check(await client.storage.from('avatars').createSignedUrl(profile.avatar_path,300));$('#avatar').src=signed.signedUrl;}
  const params=new URLSearchParams(location.search),save=params.get('save');if(save){history.replaceState({},'',location.pathname);const path=safePath(save);if(path!=='/'){check(await client.from('favorites').upsert({user_id:user.id,path,title:(params.get('title')||path).slice(0,150)},{onConflict:'user_id,path',ignoreDuplicates:true}));await dashboard();}}
 }
