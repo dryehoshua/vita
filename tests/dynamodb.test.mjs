@@ -158,3 +158,52 @@ test('registration type requests business access only after OTP and never grants
  assert.equal((await api('/api/rpc',{name:'decide_request',args:{request_id:request.id,approve:true}},admin)).status,200);
  assert.ok((await store.list('Organizations')).some(org=>org.name===registration.businessName&&org.business_type==='stay'));
 });
+
+test('hosted registration sends the branded OTP through configured delivery',async()=>{
+ const {request}=await import('node:http');
+ const {accountEmail}=await import('../server/account-email.mjs');
+ const site='https://roma-condesa.app';
+ const gateway='integration-test-gateway';
+ const deliveries=[];
+ const hosted=await createDynamoApp({store,origin:site,dataDir:dir,gatewayKey:gateway,delivery:{
+  async send(message){deliveries.push({...message,render:accountEmail(message)});}
+ }});
+ const listener=await new Promise(resolve=>{
+  const bound=hosted.app.listen(0,'127.0.0.1',()=>resolve(bound));
+ });
+ function call(path,body){
+  return new Promise((resolve,reject)=>{
+   const req=request({host:'127.0.0.1',port:listener.address().port,path,
+    method:body?'POST':'GET',headers:{Host:'roma-condesa.app',Origin:site,
+     'x-vita-gateway':gateway,'Content-Type':'application/json'}},res=>{
+     let text='';
+     res.setEncoding('utf8');
+     res.on('data',chunk=>{text+=chunk;});
+     res.on('end',()=>resolve({status:res.statusCode,text,cookie:res.headers['set-cookie']?.[0]}));
+   });
+   req.on('error',reject);
+   req.end(body?JSON.stringify(body):undefined);
+  });
+ }
+ try{
+  const config=await call('/account-config.js');
+  assert.match(config.text,/"registrationEnabled":true/);
+  assert.match(config.text,/"localMailbox":false/);
+  const email='hosted-signup@example.test',registration={type:'writer'};
+  assert.equal((await call('/api/auth/signup',{email,password,name:'Autora',registration})).status,200);
+  assert.equal(deliveries.length,1);
+  const [message]=deliveries;
+  assert.equal(message.to,email);
+  assert.match(message.otpCode,/^\d{6}$/);
+  assert.ok(message.render.html.includes(message.otpCode));
+  assert.match(message.render.html,/cid:lavita-logo/);
+  assert.equal((await call('/dev/mail')).status,404);
+  const verified=await call('/api/auth/verify-code',{email,password,code:message.otpCode});
+  assert.equal(verified.status,200);
+  assert.equal(JSON.parse(verified.text).pending,true);
+  const login=await call('/api/auth/login',{email,password});
+  assert.equal(login.status,200);
+  assert.match(login.cookie,/Secure/);
+  assert.match(login.cookie,/HttpOnly/);
+ }finally{await new Promise(resolve=>listener.close(resolve));}
+});
