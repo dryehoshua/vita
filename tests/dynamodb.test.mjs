@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {mkdtempSync,readdirSync,readFileSync,rmSync} from 'node:fs';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
+import sharp from 'sharp';
 import {DynamoDBClient,DeleteTableCommand} from '@aws-sdk/client-dynamodb';
 import {openStore} from '../server/dynamo/store.mjs';
 import {createDynamoApp} from '../server/dynamo/app.mjs';
@@ -13,6 +14,33 @@ async function signup(email){await api('/api/auth/signup',{email,password,name:e
 const uid=async e=>(await store.get('Emails',e)).id;
 before(async()=>{dir=mkdtempSync(join(tmpdir(),'vita-ddb-'));store=await openStore({table});const x=await createDynamoApp({store,origin,dataDir:dir});server=x.app.listen(18945,'127.0.0.1');await new Promise(r=>server.once('listening',r));alice=await signup('alice@example.test');bob=await signup('bob@example.test');admin=await signup('support@roma-condesa.app');const id=await uid('support@roma-condesa.app');await store.transaction(async tx=>{const u=await tx.get('Users',id);await tx.put('Users',id,{...u,roles:['admin']});});const f=(await api('/api/mfa/enroll',{},admin)).body.data;await api('/api/mfa/verify',{factorId:f.id,code:otp(f.totp.secret,Math.floor(Date.now()/30000))},admin);});
 after(async()=>{if(server)await new Promise(r=>server.close(r));store?.close();if(table.startsWith('VitaTest')){const c=new DynamoDBClient({endpoint:'http://127.0.0.1:8000',region:'us-east-1',credentials:{accessKeyId:'LOCALONLY',secretAccessKey:'LOCALONLY'}});await c.send(new DeleteTableCommand({TableName:table}));c.destroy();}if(dir)rmSync(dir,{recursive:true,force:true});});
+test('avatar upload converts browser PNG and JPEG fallbacks to WebP',async()=>{
+ for(const format of ['png','jpeg']){
+  const image=await sharp({create:{width:700,height:900,channels:3,background:'#641d32'}}).toFormat(format).toBuffer();
+  const upload=await fetch(origin+'/api/avatar',{method:'PUT',headers:{Origin:origin,Cookie:alice,'Content-Type':'image/'+format},body:image});
+  assert.equal(upload.status,200);
+  const downloaded=await fetch(origin+'/api/avatar',{headers:{Cookie:alice}});
+  assert.equal(downloaded.headers.get('content-type'),'image/webp');
+  const saved=await sharp(Buffer.from(await downloaded.arrayBuffer())).metadata();
+  assert.equal(saved.format,'webp');
+  assert.equal(saved.width,512);
+  assert.equal(saved.height,512);
+ }
+});
+test('saving an avatar does not require a language on older profiles',async()=>{
+ const id=await uid('alice@example.test');
+ const profile=await store.get('Profiles',id);
+ const {language,...olderProfile}=profile;
+ await store.put('Profiles',id,olderProfile);
+ try{
+  const avatar_path=id+'/avatar.webp';
+  const result=await api('/api/query',{table:'profiles',action:'update',values:{avatar_path},filters:{id}},alice);
+  assert.equal(result.status,200);
+  assert.equal((await store.get('Profiles',id)).avatar_path,avatar_path);
+  const invalid=await api('/api/query',{table:'profiles',action:'update',values:{language:'invalid'},filters:{id}},alice);
+  assert.equal(invalid.status,400);
+ }finally{await store.put('Profiles',id,profile);}
+});
 test('actual DynamoDB transactions prevent lost update',async()=>{await store.put('Test','counter',{n:0});const work=()=>store.transaction(async tx=>{const v=await tx.get('Test','counter');await new Promise(r=>setTimeout(r,50));await tx.put('Test','counter',{n:v.n+1});});const results=await Promise.allSettled([work(),work()]);assert.equal(results.filter(r=>r.status==='fulfilled').length,1);assert.equal((await store.get('Test','counter')).n,1);});
 test('identity and role separation enforced',async()=>{assert.equal((await api('/api/query',{table:'profiles'})).status,401);assert.equal((await api('/api/query',{table:'global_roles',action:'insert',values:{role:'admin'}},alice)).status,403);assert.equal((await api('/api/query',{table:'profiles',filters:{id:await uid('bob@example.test')}},alice)).body.data.length,0);assert.equal((await api('/api/rpc',{name:'account_metrics'},alice)).status,403);assert.equal((await api('/api/rpc',{name:'account_metrics'},admin)).body.data.accounts,3);});
 test('only verified support can exercise the admin role with MFA',async()=>{

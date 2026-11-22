@@ -1,7 +1,7 @@
 import React,{useEffect,useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import QRCode from 'qrcode';
-import {avatarPreview,avatarTypes,encodeAvatar,photoFeedback,saveAvatar} from '../accounts/avatar.js';
+import {avatarPreview,avatarAccept,encodeAvatar,photoFeedback,saveAvatar} from '../accounts/avatar.js';
 import {createClient} from '../accounts/local-client.js';
 import {Brand,Icon,Progress,BadgeArt} from './art';
 type Lang='es'|'en';
@@ -239,7 +239,7 @@ function Preferences({lang,profile,close,tour}:{lang:Lang,profile:Data['profile'
     <div className="onboarding-avatar">{preview||savedAvatar?<img src={preview||savedAvatar||''} alt={t('Vista previa de tu foto','Preview of your photo')}/>:<span aria-hidden>{Array.from(profile.name)[0]?.toUpperCase()}</span>}</div>
     <label className="onboarding-upload">
      <span>{preview||savedAvatar?t('Elegir otra foto','Choose another photo'):t('Elegir foto','Choose a photo')}</span>
-     <input type="file" accept={avatarTypes.join(',')} disabled={busy} onChange={e=>{const file=e.currentTarget.files?.[0];e.currentTarget.value='';if(file)void selectPhoto(file);}}/>
+     <input type="file" accept={avatarAccept} disabled={busy} onChange={e=>{const file=e.currentTarget.files?.[0];e.currentTarget.value='';if(file)void selectPhoto(file);}}/>
     </label>
    </>}
    {step===1&&<>

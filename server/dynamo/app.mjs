@@ -74,7 +74,16 @@ export async function createDynamoApp({store:provided,table='LaVitaLocal',endpoi
   else if(t==='favorites')data=await store.list('Favorites#'+id);else if(t==='point_entries')data=await store.list('Ledger#'+id);else fail(403,'Forbidden table');
   for(const [k,v]of Object.entries(f)){if(!['id','user_id','status','path'].includes(k))fail(400,'Invalid filter');data=data.filter(r=>r?.[k]===v);}
  }else if(t==='profiles'&&action==='update'){
-  if(f.id!==id||Object.keys(v).some(k=>!['display_name','residence','language','avatar_path'].includes(k)))fail(403,'Forbidden');await store.transaction(async tx=>{const p={...await tx.get('Profiles',id),...v};txt(p.display_name,60);if(!['es','en'].includes(p.language)||!['unspecified','tourist','cdmx','roma-condesa'].includes(p.residence)||p.avatar_path!==null&&p.avatar_path!==id+'/avatar.webp')fail(400,'Invalid profile');await tx.put('Profiles',id,p);});
+  if(f.id!==id||Object.keys(v).some(k=>!['display_name','residence','language','avatar_path'].includes(k)))fail(403,'Forbidden');
+  if(Object.hasOwn(v,'display_name'))txt(v.display_name,60);
+  if(Object.hasOwn(v,'language')&&!['es','en'].includes(v.language)
+   ||Object.hasOwn(v,'residence')&&!['unspecified','tourist','cdmx','roma-condesa'].includes(v.residence)
+   ||Object.hasOwn(v,'avatar_path')&&v.avatar_path!==null&&v.avatar_path!==id+'/avatar.webp')fail(400,'Invalid profile');
+  await store.transaction(async tx=>{
+   const profile=await tx.get('Profiles',id);
+   if(!profile)fail(404,'Profile not found');
+   await tx.put('Profiles',id,{...profile,...v});
+  });
  }else if(t==='access_requests'&&action==='insert'){
   if(v.user_id!==id||Object.keys(v).some(k=>!['user_id','kind','name'].includes(k))||!['business','guide','writer'].includes(v.kind))fail(403,'Forbidden request');const rid=randomUUID();await store.transaction(async tx=>{if(await tx.get('Pending',id+':'+v.kind))fail(409,'Already pending');await tx.put('Pending',id+':'+v.kind,{id:rid});await tx.put('Requests',rid,{id:rid,user_id:id,kind:v.kind,name:txt(v.name),status:'pending',created_at:now()});});
  }else if(t==='favorites'&&['insert','upsert','delete'].includes(action)){
@@ -91,7 +100,18 @@ export async function createDynamoApp({store:provided,table='LaVitaLocal',endpoi
  else if(a==='enroll'){if(f?.verified)fail(409,'Already enrolled');const factor={id:randomUUID(),user_id:id,secret:base32(randomBytes(20)),verified:false,last_step:-1};await store.transaction(async tx=>{if((await tx.get('Factors',id))?.verified)fail(409,'Already enrolled');await tx.put('Factors',id,factor);});data={id:factor.id,totp:{secret:factor.secret}};}
  else if(a==='unenroll'){await store.transaction(async tx=>{if((await tx.get('Factors',id))?.verified)fail(403,'Operator recovery required');await tx.remove('Factors',id);});data={};}
  else if(a==='verify'){await store.transaction(async tx=>{const f=await tx.get('Factors',id);if(!f||f.id!==req.body.factorId)fail(400,'Invalid factor');const step=verifyOtp(f.secret,req.body.code,f.last_step);if(step===null)fail(403,'Invalid code');await tx.put('Factors',id,{...f,verified:true,last_step:step});const s=await tx.get('Sessions',req.session.hash);await tx.put('Sessions',s.hash,{...s,aal2:Date.now()+900000});});data={};}else fail(400,'Invalid action');res.json({data});});
- app.put('/api/avatar',authenticated,express.raw({type:'image/webp',limit:'2mb'}),async(req,res)=>{if(!Buffer.isBuffer(req.body))fail(400,'Image required');let bytes;try{bytes=await sharp(req.body,{limitInputPixels:4000000}).resize(512,512,{fit:'cover'}).webp().toBuffer();}catch{fail(400,'Invalid image');}writeFileSync(join(dataDir,'avatars',req.user.id+'.webp'),bytes,{mode:0o600});res.json({data:{path:req.user.id+'/avatar.webp'}});});
+ app.put('/api/avatar',authenticated,express.raw({type:['image/webp','image/jpeg','image/png'],limit:'2mb'}),async(req,res)=>{
+  if(!Buffer.isBuffer(req.body))fail(400,'Image required');
+  let bytes;
+  try{
+   const photo=sharp(req.body,{limitInputPixels:4000000});
+   if(!['webp','jpeg','png'].includes((await photo.metadata()).format))fail(400,'Invalid image');
+   bytes=await photo.autoOrient().resize(512,512,{fit:'cover'}).webp().toBuffer();
+  }catch{fail(400,'Invalid image');}
+  const path=req.user.id+'/avatar.webp';
+  writeFileSync(join(dataDir,'avatars',req.user.id+'.webp'),bytes,{mode:0o600});
+  res.json({data:{path}});
+ });
  app.get('/api/avatar',authenticated,(req,res)=>{const p=join(dataDir,'avatars',req.user.id+'.webp');if(!existsSync(p))return res.sendStatus(404);res.type('webp').send(readFileSync(p));});app.delete('/api/avatar',authenticated,(req,res)=>{const p=join(dataDir,'avatars',req.user.id+'.webp');if(existsSync(p))unlinkSync(p);res.json({data:{}});});
  app.get('/api/admin/accounts',authenticated,async(req,res)=>{
   admin(req);
@@ -125,7 +145,7 @@ export async function createDynamoApp({store:provided,table='LaVitaLocal',endpoi
  app.get('/api/health',(req,res)=>res.json({ok:true,mode:local?'local':'hosted',database:'DynamoDB'}));
  app.get('/account-config.js',(req,res)=>res.type('js').send(`export const accountConfig=${JSON.stringify({enabled:true,provider:'local',database:'dynamodb',siteUrl:origin,privacyUrl:'/privacidad-local',localMailbox:local,registrationEnabled:local||!!delivery})};`));
  app.get('/privacidad-local',(req,res)=>res.type('html').send('<h1>La Vita · Prueba local</h1><p>Usa datos de prueba. Las cuentas se guardan en DynamoDB Local en esta computadora; las fotos en su almacenamiento local. No se envían correos externos. Este texto no sustituye el aviso para apertura pública.</p><a href="/cuenta">Volver</a>'));
- app.use((req,res,next)=>{res.set('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self'; base-uri 'self'; frame-ancestors 'none'");next();});
+ app.use((req,res,next)=>{const photoWorker=/^\/(?:perfil|cuenta)(?:\.html)?\/?$/.test(req.path)?"worker-src 'self' blob:; ":"";res.set('Content-Security-Policy',photoWorker+"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self'; base-uri 'self'; frame-ancestors 'none'");next();});
  app.use(express.static(dist,{extensions:['html'],index:'index.html',dotfiles:'deny'}));
  app.use((e,req,res,next)=>res.status(e.status||500).json({error:e.status?e.message:'Request failed',code:e.status===409?'23505':undefined}));
  return {app,store};
