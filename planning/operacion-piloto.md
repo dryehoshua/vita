@@ -16,7 +16,7 @@ Los servicios supervisados se llaman `app.roma-condesa.vita.database`, `.local`,
 
 Crea una cuenta en `http://localhost:4173/cuenta?view=registro`. El código de seis dígitos está en `http://localhost:4173/dev/mail`, vence en diez minutos y solo se usa una vez. Al entrar al perfil se puede reclamar una sola vez el bono de bienvenida de diez puntos del programa de prueba. No cuenta como visita. Para dar acceso de negocio a una cuenta de prueba verificada, ejecutar `node scripts/loyalty-pilot.mjs correo@example.test`. La cuenta de negocio se asigna al programa de prueba. También puede dar acceso de equipo a otra cuenta verificada desde Mi cuenta. Los puntos son persistentes y los beneficios del negocio de prueba no tienen valor comercial.
 
-Crear un administrador local con `node scripts/local-operator.mjs admin correo@example.test` y configurar el doble factor en Mi cuenta antes de abrir las métricas o aprobar contenido. El registro público y el correo externo permanecen cerrados.
+`support@roma-condesa.app` es el correo que recibe los tickets y la única cuenta que puede ejercer permisos de administrador. Tras verificar esa cuenta en La Vita, asignarle el rol con `node scripts/local-operator.mjs admin`. Configurar el doble factor en Mi cuenta antes de abrir las métricas o aprobar contenido.
 
 ## Respaldo y restauración
 

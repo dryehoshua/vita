@@ -1,3 +1,4 @@
+import {hasAdministratorRole,visibleRoles} from './admin-policy.mjs';
 import {registrationIntent,requestRegistrationAccess} from './registration-intent.mjs';
 import {registrationOtp} from './registration-otp.mjs';
 import {mountAdventures} from './adventures.mjs';
@@ -41,7 +42,7 @@ export async function createDynamoApp({store:provided,table='LaVitaLocal',endpoi
  app.use('/api',(req,res,next)=>{if(!['GET','HEAD'].includes(req.method)&&req.headers.origin!==origin)return res.status(403).json({error:'Invalid origin'});next();});
  app.use('/api',rateLimit({windowMs:60000,limit:200,standardHeaders:true,legacyHeaders:false}));app.use(express.json({limit:'1mb'}));
  app.use(async(req,res,next)=>{const raw=req.headers.cookie?.split(';').map(x=>x.trim()).find(x=>x.startsWith('vita_session='))?.slice(13);if(raw){const s=await store.get('Sessions',digest(raw));if(s&&s.expires>Date.now()){const u=await store.get('Users',s.user_id);if(u?.status==='active'&&u.verified&&u.session_version===s.session_version){req.session=s;req.user=u;}}}next();});
- const authenticated=(req,res,next)=>req.user?next():res.status(401).json({error:'Sign in required'}),isAdmin=req=>!!req.user?.roles?.includes('admin')&&req.session.aal2>Date.now();
+ const authenticated=(req,res,next)=>req.user?next():res.status(401).json({error:'Sign in required'}),isAdmin=req=>hasAdministratorRole(req.user)&&req.session?.aal2>Date.now();
  const admin=req=>{if(!isAdmin(req))fail(403,'Administrator and MFA required');};
  const owns=async(req,org)=>{const m=await store.get('Memberships',org+':'+req.user.id);return m?.active&&m.role==='owner';};
  const authLimit=rateLimit({windowMs:900000,limit:30,standardHeaders:true,legacyHeaders:false});
@@ -68,7 +69,7 @@ export async function createDynamoApp({store:provided,table='LaVitaLocal',endpoi
  app.post('/api/auth/password',authLimit,async(req,res)=>{const p=password(req.body.password),h=digest(String(req.body.token||'')),hash=await hashPassword(p);await store.transaction(async tx=>{const t=await tx.get('Tokens',h);if(!t||t.purpose!=='recovery'||t.expires<Date.now())fail(400,'Invalid recovery link');const u=await tx.get('Users',t.user_id);await tx.put('Users',u.id,{...u,password:hash,session_version:u.session_version+1});await tx.remove('Tokens',h);});res.clearCookie('vita_session',cookie).json({ok:true});});
  app.post('/api/query',authenticated,async(req,res)=>{const {table:t,action='select',values:v={},filters:f={}}=req.body,id=req.user.id;let data=[];
  if(action==='select'){
-  if(t==='profiles')data=[await store.get('Profiles',id)];else if(t==='global_roles')data=req.user.roles.map(role=>({role}));else if(t==='memberships'){data=(await store.list('Memberships')).filter(m=>m.user_id===id);data=await Promise.all(data.map(async m=>({...m,organizations:{name:(await store.get('Organizations',m.organization_id))?.name}})));}
+  if(t==='profiles')data=[await store.get('Profiles',id)];else if(t==='global_roles')data=visibleRoles(req.user).map(role=>({role}));else if(t==='memberships'){data=(await store.list('Memberships')).filter(m=>m.user_id===id);data=await Promise.all(data.map(async m=>({...m,organizations:{name:(await store.get('Organizations',m.organization_id))?.name}})));}
   else if(t==='access_requests')data=(await store.list('Requests')).filter(r=>isAdmin(req)&&!f.user_id||r.user_id===id);
   else if(t==='favorites')data=await store.list('Favorites#'+id);else if(t==='point_entries')data=await store.list('Ledger#'+id);else fail(403,'Forbidden table');
   for(const [k,v]of Object.entries(f)){if(!['id','user_id','status','path'].includes(k))fail(400,'Invalid filter');data=data.filter(r=>r?.[k]===v);}
@@ -80,7 +81,7 @@ export async function createDynamoApp({store:provided,table='LaVitaLocal',endpoi
   if(action==='delete'){if(f.user_id!==id)fail(403,'Forbidden');await store.remove('Favorites#'+id,txt(f.path,240));}else{if(v.user_id!==id||safePath(v.path)!==v.path||v.path==='/')fail(400,'Invalid favorite');await store.put('Favorites#'+id,v.path,{user_id:id,path:v.path,title:txt(v.title,150),created_at:now()});}
  }else fail(403,'Operation not allowed');res.json({data:req.body.single?data[0]||null:data});});
  app.post('/api/rpc',authenticated,async(req,res)=>{const {name,args:a={}}=req.body;let data=null;
- if(name==='account_metrics'){admin(req);const users=await store.list('Users'),profiles=await store.list('Profiles'),members=await store.list('Memberships'),roles={};for(const u of users)for(const r of new Set([...u.roles,...members.filter(m=>m.user_id===u.id&&m.active).map(m=>m.role)]))roles[r]=(roles[r]||0)+1;data={accounts:users.filter(u=>u.verified).length,profiles:profiles.length,roles,residence:profiles.reduce((o,p)=>(o[p.residence]=(o[p.residence]||0)+1,o),{}),pending:(await store.list('Requests')).filter(r=>r.status==='pending').length,pageViews:(await store.list('PageViews')).reduce((n,r)=>n+r.count,0),generated_at:now()};}
+ if(name==='account_metrics'){admin(req);const users=await store.list('Users'),profiles=await store.list('Profiles'),members=await store.list('Memberships'),roles={};for(const u of users)for(const r of new Set([...visibleRoles(u),...members.filter(m=>m.user_id===u.id&&m.active).map(m=>m.role)]))roles[r]=(roles[r]||0)+1;data={accounts:users.filter(u=>u.verified).length,profiles:profiles.length,roles,residence:profiles.reduce((o,p)=>(o[p.residence]=(o[p.residence]||0)+1,o),{}),pending:(await store.list('Requests')).filter(r=>r.status==='pending').length,pageViews:(await store.list('PageViews')).reduce((n,r)=>n+r.count,0),generated_at:now()};}
  else if(name==='decide_request'){admin(req);if(typeof a.approve!=='boolean')fail(400,'Invalid decision');await store.transaction(async tx=>{const r=await tx.get('Requests',a.request_id);if(!r||r.status!=='pending')fail(409,'Request not pending');const u=await tx.get('Users',r.user_id);if(a.approve){if(r.kind==='business'){const org=randomUUID();await tx.put('Organizations',org,{id:org,name:r.name,...(r.business_type?{business_type:r.business_type}:{})});await tx.put('Memberships',org+':'+u.id,{organization_id:org,user_id:u.id,role:'owner',active:true});}else await tx.put('Users',u.id,{...u,roles:[...new Set([...u.roles,r.kind])]});}await tx.put('Requests',r.id,{...r,status:a.approve?'approved':'rejected'});await tx.remove('Pending',u.id+':'+r.kind);});await audit(req.user.id,'decide_request',a.request_id);}
  else if(name==='set_team_member'){if(!await owns(req,a.org)&&!isAdmin(req))fail(403,'Forbidden');if(typeof a.enabled!=='boolean')fail(400,'Invalid state');const i=await store.get('Emails',email(a.member_email)),u=i?await store.get('Users',i.id):null;if(!u?.verified)fail(400,'Verified account required');await store.transaction(async tx=>{const key=a.org+':'+u.id,m=await tx.get('Memberships',key);if(m?.role==='owner')fail(403,'Cannot modify owner');await tx.put('Memberships',key,{organization_id:a.org,user_id:u.id,role:'staff',active:a.enabled});});await audit(req.user.id,'set_staff',a.org+':'+u.id);}
  else fail(403,'Unknown action');res.json({data});});
@@ -94,7 +95,7 @@ export async function createDynamoApp({store:provided,table='LaVitaLocal',endpoi
  app.get('/api/avatar',authenticated,(req,res)=>{const p=join(dataDir,'avatars',req.user.id+'.webp');if(!existsSync(p))return res.sendStatus(404);res.type('webp').send(readFileSync(p));});app.delete('/api/avatar',authenticated,(req,res)=>{const p=join(dataDir,'avatars',req.user.id+'.webp');if(existsSync(p))unlinkSync(p);res.json({data:{}});});
  app.get('/api/admin/accounts',authenticated,async(req,res)=>{
   admin(req);
-  const accounts=(await store.list('Users')).filter(u=>u.verified).map(({id,email,status,roles})=>({id,email,status,roles}));
+  const accounts=(await store.list('Users')).filter(u=>u.verified).map(u=>({id:u.id,email:u.email,status:u.status,roles:visibleRoles(u)}));
   res.json({data:accounts});
  });
  app.patch('/api/admin/accounts/:id/status',authenticated,async(req,res)=>{
@@ -106,7 +107,7 @@ export async function createDynamoApp({store:provided,table='LaVitaLocal',endpoi
   await store.transaction(async tx=>{
    const operator=await tx.get('Users',req.user.id);
    const account=await tx.get('Users',req.params.id);
-   if(operator?.status!=='active'||!operator.roles.includes('admin'))fail(403,'Administrator required');
+   if(!hasAdministratorRole(operator))fail(403,'Administrator required');
    if(!account?.verified)fail(404,'Account not found');
    if(account.status===status)return;
    await tx.put('Users',account.id,{...account,status,session_version:account.session_version+1});
