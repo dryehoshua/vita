@@ -1,7 +1,7 @@
 import React,{useEffect,useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import QRCode from 'qrcode';
-import {avatarTypes,encodeAvatar,saveAvatar} from '../accounts/avatar.js';
+import {avatarPreview,avatarTypes,encodeAvatar,photoFeedback,saveAvatar} from '../accounts/avatar.js';
 import {createClient} from '../accounts/local-client.js';
 import {Brand,Icon,Progress,BadgeArt} from './art';
 type Lang='es'|'en';
@@ -192,6 +192,9 @@ function Preferences({lang,profile,close,tour}:{lang:Lang,profile:Data['profile'
  const [interests,setInterests]=useState(profile.interests);
  const [photo,setPhoto]=useState<Blob>();
  const [preview,setPreview]=useState('');
+ const [savedAvatar,setSavedAvatar]=useState(profile.avatar);
+ const [photoStatus,setPhotoStatus]=useState<'preparing'|'ready'|'uploading'|'saved'>();
+ const [photoError,setPhotoError]=useState<'readError'|'uploadError'>();
  const [busy,setBusy]=useState(false);
  const [error,setError]=useState('');
  const t=(es:string,en:string)=>choice(lang,[es,en]);
@@ -199,24 +202,26 @@ function Preferences({lang,profile,close,tour}:{lang:Lang,profile:Data['profile'
  const heading=React.useRef<HTMLHeadingElement>(null);
  useEffect(()=>{ref.current?.showModal();},[]);
  useEffect(()=>{heading.current?.focus();},[step]);
- useEffect(()=>{
-  if(!photo)return;
-  const url=URL.createObjectURL(photo);
-  setPreview(url);
-  return ()=>URL.revokeObjectURL(url);
- },[photo]);
  function move(next:number){setError('');setStep(next);}
  async function selectPhoto(file:File){
-  setBusy(true);setError('');
-  try{setPhoto(await encodeAvatar(file));}
-  catch{setError(t('No pudimos procesar la foto. Prueba con un archivo JPG, PNG o WebP que se abra en tu dispositivo.','We couldn’t process the photo. Try a JPG, PNG or WebP file that opens on your device.'));}
+  setBusy(true);setPhotoError(undefined);setPhotoStatus('preparing');setPhoto(undefined);setPreview('');
+  try{
+   const prepared=await encodeAvatar(file);
+   setPreview(await avatarPreview(prepared));
+   setPhoto(prepared);setPhotoStatus('ready');
+  }catch{setPhotoStatus(undefined);setPhotoError('readError');}
   finally{setBusy(false);}
  }
  async function next(){
   setBusy(true);setError('');
   try{
    if(step===0){
-    if(photo)await saveAvatar(createClient(),profile.id,photo);
+    if(photo){
+     setPhotoError(undefined);setPhotoStatus('uploading');
+     try{await saveAvatar(createClient(),profile.id,photo);}
+     catch{setPhotoStatus(undefined);setPhotoError('uploadError');return;}
+     setPhoto(undefined);setPhotoStatus('saved');setSavedAvatar('/api/avatar?v='+Date.now());
+    }
     move(1);
     return;
    }
@@ -231,9 +236,9 @@ function Preferences({lang,profile,close,tour}:{lang:Lang,profile:Data['profile'
    <h2 id="onboarding-title" ref={heading} tabIndex={-1}>{title}</h2>
    {step===0&&<>
     <p>{t('Agrega una foto para personalizar tu cuenta. Puedes cambiarla después.','Add a photo to personalize your account. You can change it later.')}</p>
-    <div className="onboarding-avatar">{preview||profile.avatar?<img src={preview||profile.avatar||''} alt={t('Vista previa de tu foto','Preview of your photo')}/>:<span aria-hidden>{Array.from(profile.name)[0]?.toUpperCase()}</span>}</div>
+    <div className="onboarding-avatar">{preview||savedAvatar?<img src={preview||savedAvatar||''} alt={t('Vista previa de tu foto','Preview of your photo')}/>:<span aria-hidden>{Array.from(profile.name)[0]?.toUpperCase()}</span>}</div>
     <label className="onboarding-upload">
-     <span>{t('Elegir foto','Choose a photo')}</span>
+     <span>{preview||savedAvatar?t('Elegir otra foto','Choose another photo'):t('Elegir foto','Choose a photo')}</span>
      <input type="file" accept={avatarTypes.join(',')} disabled={busy} onChange={e=>{const file=e.currentTarget.files?.[0];e.currentTarget.value='';if(file)void selectPhoto(file);}}/>
     </label>
    </>}
@@ -243,10 +248,13 @@ function Preferences({lang,profile,close,tour}:{lang:Lang,profile:Data['profile'
     <div className="interest-grid">{Object.entries(activities).map(([key,name])=><button key={key} type="button" className="btn secondary" aria-pressed={interests.includes(key)} disabled={!interests.includes(key)&&interests.length>=4} onClick={()=>setInterests(pre=>pre.includes(key)?pre.filter(x=>x!==key):[...pre,key])}>{choice(lang,name)}</button>)}</div>
    </>}
    {step===2&&<ul className="onboarding-guide">{tourSections.map(item=><li key={item.icon}><span className="onboarding-icon"><Icon name={item.icon}/></span><div><strong>{t(...item.title)}</strong><p>{t(...item.detail)}</p></div></li>)}</ul>}
+   {tour&&step<2&&<p className="photo-feedback" role="status">{photoStatus&&t(...photoFeedback[photoStatus])}</p>}
+   {step===0&&photoError&&<p className="photo-feedback error" role="alert">{t(...photoFeedback[photoError])}</p>}
    {error&&<p role="alert">{error}</p>}
    <button className="btn primary" disabled={busy} onClick={()=>tour&&step===1?move(2):void next()}>
-    {busy?t('Un momento…','One moment…'):step===0?(photo?t('Guardar foto y continuar','Save photo and continue'):profile.avatar?t('Conservar mi foto','Keep my photo'):t('Continuar sin foto','Continue without a photo')):step===2?t('Ir a mi perfil','Go to my profile'):tour?t('Continuar','Continue'):t('Guardar preferencias','Save preferences')}
+    {step===0?(photo?t('Guardar foto y continuar','Save photo and continue'):savedAvatar?t('Continuar','Continue'):t('Continuar sin foto','Continue without a photo')):step===2?t('Ir a mi perfil','Go to my profile'):tour?t('Continuar','Continue'):t('Guardar preferencias','Save preferences')}
    </button>
+   {step===0&&photo&&!busy&&<button className="text-link" onClick={()=>{setPhoto(undefined);setPreview('');setPhotoStatus(undefined);setPhotoError(undefined);move(1);}}>{savedAvatar?t('Conservar mi foto actual','Keep my current photo'):t('Continuar sin foto','Continue without a photo')}</button>}
    {tour&&step>0&&<button className="text-link" disabled={busy} onClick={()=>move(step-1)}>{t('Atrás','Back')}</button>}
    {!tour&&<button className="text-link" disabled={busy} onClick={()=>void close()}>{t('Cancelar','Cancel')}</button>}
   </section>

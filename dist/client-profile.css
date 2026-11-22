@@ -1572,3 +1572,8 @@ section p { overflow-wrap:anywhere; }
   .mission-animal-mini { width:32px; }
   .mission-card-intro .mission-animal { width:63px; }
 }
+
+.onboarding-avatar > img { display:block; }
+.photo-feedback { font-size:.85rem; line-height:1.4; text-align:center; color:var(--wine); }
+.photo-feedback:empty { display:none; }
+.photo-feedback.error { color:#9a2539; }

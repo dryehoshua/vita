@@ -13,16 +13,52 @@ function mockClient(){
  return {auth:{onAuthStateChange:()=>{},getSession:()=>ok({session:current?{}:null}),getUser:()=>ok({user:current}),signUp:x=>{calls.push(['signup',x]);return ok({});},verifyRegistrationCode:x=>{calls.push(['verify',x]);return Promise.resolve({data:null,error:{message:'Invalid or expired verification code'}});},signInWithPassword:x=>{calls.push(['login',x]);current={id:'u1',email:x.email};return ok({});},resetPasswordForEmail:(...x)=>{calls.push(['reset',...x]);return ok({});},signOut:()=>{current=null;return ok({});},mfa:{getAuthenticatorAssuranceLevel:()=>ok({currentLevel:'aal1'}),listFactors:()=>ok({totp:[],all:[]})}},
  from:table=>{let single=false;const q={select:()=>q,eq:()=>q,order:()=>q,single:()=>{single=true;return q;},update:x=>{calls.push(['update',table,x]);return q;},insert:x=>{calls.push(['insert',table,x]);return q;},then:(resolve,reject)=>ok(single?store[table][0]:store[table]||[]).then(resolve,reject)};return q;}};
 }
-async function mount(enabled=false,loggedIn=false){
+async function mount(enabled=false,loggedIn=false,clientFactory=mockClient){
  const dom=new JSDOM(html,{url:'https://roma-condesa.app/cuenta'});
  for(const k of ['document','location','history','sessionStorage','FormData'])globalThis[k]=dom.window[k];
  current=loggedIn?{id:'u1',email:'test@example.test'}:null;calls=[];store={profiles:[{display_name:'Ana',residence:'cdmx'}],global_roles:[],memberships:[],favorites:[],point_entries:[],access_requests:[]};
- globalThis.vitaMock=mockClient;
+ globalThis.vitaMock=clientFactory;
  const dir=await mkdtemp(join(tmpdir(),'vita-test-'));const file=join(dir,'account.mjs');
  await build({entryPoints:['src/accounts/account.js'],bundle:true,format:'esm',outfile:file,plugins:[{name:'test-services',setup(b){b.onResolve({filter:/^(\.\/local-client\.js|\/account-config.js)$/},a=>({path:a.path,namespace:'mock'}));b.onLoad({filter:/.*/,namespace:'mock'},a=>({contents:a.path.includes('config')?`export const accountConfig={enabled:${enabled},provider:'local',siteUrl:'https://roma-condesa.app',privacyUrl:'/privacidad'};`:'export const createClient=globalThis.vitaMock;',loader:'js'}));}}]});
  await import(file);await rm(dir,{recursive:true});return dom;
 }
 const tick=()=>new Promise(r=>setTimeout(r,20));
+
+test('the photo form shows preparation, preview, upload, failure and confirmation',async t=>{
+ let upload=Promise.withResolvers();
+ const dom=await mount(true,true,()=>({...mockClient(),storage:{from:()=>({upload:()=>upload.promise})}}));
+ const {window}=dom;
+ const bitmap=Promise.withResolvers();
+ const oldDecoder=globalThis.createImageBitmap, oldReader=globalThis.FileReader;
+ globalThis.createImageBitmap=()=>bitmap.promise;
+ globalThis.FileReader=window.FileReader;
+ t.after(()=>{globalThis.createImageBitmap=oldDecoder;globalThis.FileReader=oldReader;dom.window.close();});
+ t.mock.method(window.HTMLCanvasElement.prototype,'getContext',()=>({drawImage(){}}));
+ t.mock.method(window.HTMLCanvasElement.prototype,'toBlob',done=>done(new window.Blob(['preview'],{type:'image/webp'})));
+ const form=document.querySelector('#avatar-form'), picker=form.elements.photo;
+ const status=()=>document.querySelector('#avatar-status').textContent;
+ const preview=()=>document.querySelector('#avatar').src;
+ const submit=()=>form.dispatchEvent(new window.Event('submit',{cancelable:true}));
+ Object.defineProperty(picker,'files',{value:[new window.File(['photo'],'perfil.jpg',{type:'image/jpeg'})]});
+ picker.dispatchEvent(new window.Event('change'));
+ assert.match(status(),/Preparando/);
+ bitmap.resolve({width:700,height:700,close(){}});
+ await tick();
+ assert.match(status(),/Vista previa lista/);
+ assert.match(preview(),/^data:image\/webp;base64,/);
+ submit();
+ assert.match(status(),/Subiendo/);
+ upload.resolve({error:Error('Offline')});
+ await tick();
+ assert.match(document.querySelector('#avatar-error').textContent,/reintentes/);
+ assert.match(preview(),/^data:image\/webp;base64,/);
+ upload=Promise.withResolvers();
+ submit();
+ upload.resolve({data:{},error:null});
+ await tick();
+ assert.equal(status(),'Foto guardada.');
+ assert.equal(document.querySelector('#avatar-error').textContent,'');
+});
 
 test('avatar conversion accepts files larger than 5 MB and large pixel dimensions',async t=>{
  const dom=new JSDOM();

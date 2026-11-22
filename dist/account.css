@@ -4,3 +4,7 @@
 .auth-switch { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; margin-bottom: 20px; padding: 4px; border-radius: 12px; background: #f5efeb; }
 .auth-switch button { min-height: 44px; padding: 8px; background: transparent; border: 1px solid transparent; }
 .auth-switch button[aria-current="page"] { background: #fff; border-color: #e4dad4; font-weight: 700; }
+
+#avatar-form .photo-feedback { margin:4px 0; font-size:.88rem; }
+#avatar-form .photo-feedback:empty { display:none; }
+#avatar-form .photo-feedback.error { color:#9a2539; }
