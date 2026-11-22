@@ -21,3 +21,9 @@ Crear un administrador local con `node scripts/local-operator.mjs admin correo@e
 ## Respaldo y restauración
 
 `scripts/backup-vita.py` usa una instantánea en línea de la base local y copia fotos al directorio `backups/scheduled`. No copia las claves del puente. Para verificar la restauración, copiar la instantánea a una carpeta aislada, levantar DynamoDB Local con ese directorio y otro puerto de loopback y consultar los datos restaurados. Antes de restaurar en producción, detener los servicios que escriben, respaldar el estado actual y conservar ambas copias.
+
+## Habilitar registro público con correo
+
+La pantalla publicada muestra las pestañas **Regístrate** y **Login**. La primera habilita el formulario cuando el servicio tiene configurado el remitente. Crear el buzón `noreply@roma-condesa.app` en IONOS y ejecutar `scripts/configure-transactional-mail.command` en el Mac. El script pide la contraseña sin mostrarla, comprueba la conexión segura a IONOS y guarda el acceso fuera del repositorio.
+
+Después de configurar, reiniciar `app.roma-condesa.vita.backend`, comprobar la opción de registro y realizar un alta con un correo autorizado de prueba. El código de seis dígitos se entrega por correo desde La Vita; el buzón de desarrollo queda restringido al acceso local.

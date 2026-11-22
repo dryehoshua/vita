@@ -1,11 +1,20 @@
-import {readFileSync} from 'node:fs';
+import {readFileSync,statSync} from 'node:fs';
+import {createDelivery} from './delivery.mjs';
 import {createDynamoApp} from './dynamo/app.mjs';
 const gatewayKey=readFileSync('.local-data/pilot-gateway.key','utf8').trim();
 if(gatewayKey.length<40)throw Error('Invalid gateway key');
+let delivery=null;
+const mailConfig='.local-data/transactional-mail.json';
+try{
+ if(statSync(mailConfig).mode&0o077)throw Error('Mail config must be private');
+ delivery=createDelivery(JSON.parse(readFileSync(mailConfig,'utf8')));
+}catch(error){
+ if(error.code!=='ENOENT')console.error('Invalid transactional email configuration. Public sign-up is disabled.');
+}
 let runtime;
 for (let attempt = 0; !runtime; attempt++) {
   try {
-    runtime = await createDynamoApp({origin:'https://roma-condesa.app',gatewayKey});
+    runtime = await createDynamoApp({origin:'https://roma-condesa.app',gatewayKey,delivery});
   } catch (error) {
     if (attempt === 19) throw error;
     await new Promise(resolve => setTimeout(resolve,3000));

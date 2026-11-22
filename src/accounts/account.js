@@ -17,25 +17,33 @@ function check(result){if(result.error)throw result.error;return result.data;}
 function message(error){const code=error?.code;const msg=String(error?.message||'');if(code==='23505')say('Ya existe una solicitud pendiente o un favorito guardado.','A pending request or saved favorite already exists.',true);else if(msg.includes('Invalid login'))say('Correo o contraseña incorrectos.','Incorrect email or password.',true);else if(msg.includes('Invalid or expired verification code'))say('El código no coincide o venció. Puedes pedir otro.','The code is incorrect or expired. You can request another.',true);else if(msg.includes('Email not confirmed'))say('Confirma tu correo antes de entrar.','Confirm your email before signing in.',true);else if(msg.includes('Verified account required'))say('El integrante necesita crear y verificar su cuenta primero.','The team member must create and verify their account first.',true);else say('No se pudo completar. Revisa tu conexión y vuelve a intentar.','Could not complete. Check your connection and try again.',true);}
 function authView(){
  const signup=view==='signup',reset=view==='reset',verify=view==='verify';
+ const canRegister=Boolean(client)&&config.registrationEnabled!==false;
+ const registrationTab=signup||verify;
+ const unavailable=signup&&!canRegister;
  const mailLink=config.localMailbox?`<a href="/dev/mail" target="_blank" rel="noreferrer">${t('Abrir buzón de pruebas','Open test mailbox')}</a>`:'';
  const title=recovery?t('Nueva contraseña','New password'):signup?t('Crea tu cuenta','Create your account'):verify?t('Verifica tu correo','Verify your email'):reset?t('Recuperar acceso','Recover access'):t('Qué gusto verte','Welcome back');
- const info=verify?t('Escribe los 6 dígitos. El código vence en 10 minutos.','Enter the 6 digits. The code expires in 10 minutes.'):signup&&config.localMailbox?t('Al verificar tu cuenta puedes reclamar 10 puntos de bienvenida en el programa de prueba.','Verify your account to claim 10 welcome points in the test program.'):t('Guarda tus lugares y lleva tu cuenta contigo.','Save your places and keep your account with you.');
+ const info=verify&&!config.localMailbox?t('Revisa tu correo e introduce los 6 dígitos. El código vence en 10 minutos.','Check your email and enter the 6-digit code. It expires in 10 minutes.'):verify?t('Escribe los 6 dígitos. El código vence en 10 minutos.','Enter the 6 digits. The code expires in 10 minutes.'):signup&&config.localMailbox?t('Al verificar tu cuenta puedes reclamar 10 puntos de bienvenida en el programa de prueba.','Verify your account to claim 10 welcome points in the test program.'):t('Guarda tus lugares y lleva tu cuenta contigo.','Save your places and keep your account with you.');
  const action=verify?t('Verificar código','Verify code'):signup?t('Crear cuenta','Sign up'):reset?t('Enviar enlace','Send link'):recovery?t('Guardar contraseña','Save password'):t('Entrar','Sign in');
- app.innerHTML=`<section class="panel auth"><h1>${title}</h1><p class="muted">${info}</p>
+ app.innerHTML=`<section class="panel auth">
+ ${!recovery?`<nav class="auth-switch" aria-label="${t('Acceso a La Vita','La Vita account')}">
+ ${button(t('Regístrate','Sign up'),'signup',registrationTab?'aria-current="page"':'')}
+ ${button('Login','login',!registrationTab&&!reset?'aria-current="page"':'')}
+ </nav>`:''}
+ <h1>${title}</h1><p class="muted">${unavailable?t('El registro en línea aún no está disponible.','Online registration isn’t available yet.'):info}</p>
  ${!client?`<p class="badge">${t('Servidor local no conectado','Local server not connected')}</p>`:''}
- <form id="auth-form"><fieldset ${!client?'disabled':''}>
+ ${unavailable?'':`<form id="auth-form"><fieldset ${!client?'disabled':''}>
  ${signup?input('name',t('Nombre','Name'),'text','required maxlength="60" autocomplete="given-name"'):''}
  ${!recovery?input('email',t('Correo','Email'),'email','required autocomplete="email" maxlength="254" value="'+esc(verificationEmail)+'"'):''}
  ${verify?input('code',t('Código de verificación','Verification code'),'text','required inputmode="numeric" autocomplete="one-time-code" minlength="6" maxlength="6" pattern="[0-9]{6}"'):''}
  ${!reset&&!verify?input('password',t('Contraseña','Password'),'password','required '+(signup||recovery?'minlength="12" autocomplete="new-password"':'autocomplete="current-password"')):''}
  ${signup||recovery?`<small>${t('Mínimo 12 caracteres.','At least 12 characters.')}</small>`:''}
- <button class="primary">${action}</button></fieldset></form>
+ <button class="primary">${action}</button></fieldset></form>`}
  ${verify?`<p>${mailLink}</p>${button(t('Reenviar código','Resend code'),'resend-otp')} ${button(t('Volver a entrar','Back to sign in'),'login')}`:''}
- ${view==='login'&&!recovery&&config.registrationEnabled!==false?`<div class="auth-alternatives">${button(t('Crear cuenta','Create an account'),'signup')} ${button(t('Olvidé mi contraseña','Forgot password'),'reset')}</div>`:''}
- ${(signup||reset)&&!recovery?`<div class="auth-alternatives">${button(t('Volver al inicio de sesión','Back to sign in'),'login')}</div>`:''}
- ${view==='login'&&!recovery&&config.registrationEnabled===false?`<div class="auth-pilot"><strong>${t('¿Todavía no tienes cuenta?','Don’t have an account yet?')}</strong><p class="muted">${t('Por ahora, el registro y el código de verificación están disponibles en el Mac del piloto. Una vez verificada tu cuenta, puedes entrar aquí.','For now, sign-up and verification codes are available on the pilot Mac. Once your account is verified, you can sign in here.')}</p></div>`:''}
+ ${view==='login'&&!recovery&&canRegister?`<div class="auth-alternatives">${button(t('Olvidé mi contraseña','Forgot password'),'reset')}</div>`:''}
  ${reset&&mailLink?`<p>${mailLink}</p>`:''}</section>`;
- $('#auth-form').onsubmit=e=>run(e,async()=>{
+ const authForm=$('#auth-form');
+ if(!authForm)return;
+ authForm.onsubmit=e=>run(e,async()=>{
   const f=new FormData(e.target),email=String(f.get('email')||'').trim(),password=String(f.get('password')||'');
   if(recovery){check(await client.auth.updateUser({password}));recovery=false;await load();say('Contraseña actualizada.','Password updated.');}
   else if(reset){check(await client.auth.resetPasswordForEmail(email,{redirectTo:config.siteUrl+'/cuenta?flow=recovery'}));say(config.localMailbox?'Revisa el buzón de pruebas para recuperar el acceso.':'Revisa tu correo si la cuenta existe.',config.localMailbox?'Check the test mailbox to recover access.':'Check your email if the account exists.');}
@@ -125,7 +133,7 @@ if(client){
  // Recovery callbacks can arrive before the listener; URL intention is not authorization.
  const accountParams=new URLSearchParams(location.search);
  recovery=accountParams.get('flow')==='recovery';
- if(accountParams.get('view')==='registro'&&config.registrationEnabled!==false)view='signup';
+ if(accountParams.get('view')==='registro')view='signup';
  try{const session=check(await client.auth.getSession()).session;if(session)await load();else authView();}catch(e){authView();message(e);}
 }else authView();
 app.setAttribute('aria-busy','false');
