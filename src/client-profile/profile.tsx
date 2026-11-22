@@ -17,7 +17,8 @@ type Data={
  total:number,categories:number,grade:string,nextGrade:string|null,target:number,badges:Badge[],
  challenges:{id:string,es:string,en:string,count:number,target:number,complete:boolean,month:string,interests:string[]}[],offers:Offer[],missions?:Mission[],
 };
-type Mission={id:string,es:string,en:string,detailEs:string,detailEn:string,count:number,target:number,complete:boolean,active:boolean,startedAt:string|null,suggested:boolean};
+type MissionStop={id:string,name:string,address:string,website?:string,category:string,programId?:string,points?:number,discount?:string,perk?:string,partner?:boolean,visited?:boolean,verified?:boolean};
+type Mission={id:string,es:string,en:string,detailEs:string,detailEn:string,count:number,target:number,complete:boolean,active:boolean,startedAt:string|null,suggested:boolean,routeSize:number,route:MissionStop[],options:MissionStop[]};
 type Receipt={amount:number,fee:number,balance:number,recipient:string,reference:string};
 const grades:Record<string,[string,string]>={explorer:['Explorador','Explorer'],regular:['Rostro conocido','Local Favorite'],insider:['Insider','Insider'],legend:['Leyenda del barrio','Neighborhood Legend']};
 const activities:Record<string,[string,string]>={food:['Comida','Food'],coffee:['Café','Coffee'],music:['Música','Music'],art:['Arte y cultura','Art & culture'],nightlife:['Vida nocturna','Nightlife'],walks:['Paseos','Walks'],wellness:['Bienestar','Wellness']};
@@ -101,7 +102,7 @@ function App(){
   {transfer&&program?.transferEnabled?<Transfer key={program.id} lang={lang} program={program} profile={state.profile} fee={state.fee} onComplete={refresh}/>:<section className="module"><h2>{t('Movimientos','Activity')}</h2><button className="text-link" onClick={()=>navigator.clipboard.writeText(state.profile.id).then(e=>{},()=>window.prompt(t('Copia tu identificador','Copy your member ID'),state.profile.id))}>{t('Copiar mi ID para recibir puntos','Copy my ID to receive points')}</button>{!state.activity.some(row=>row.programId===program?.id)&&<p>{t('Aún no hay movimientos.','No transactions yet.')}</p>}{state.activity.filter(row=>row.programId===program?.id).map(row=><div className="movement-row" key={row.id}><span className="movement-icon"><Icon name="receipt"/></span><div><strong>{row.type==='welcome'?t('Bienvenida de prueba','Test welcome bonus'):row.type==='fee'?t('Comisión','Fee'):row.type==='sent'?t('Puntos enviados','Points sent'):row.type==='received'?t('Puntos recibidos','Points received'):row.delta>0?t('Visita validada','Visit verified'):t('Canje o ajuste','Redemption or adjustment')}</strong><small>{new Date(row.date).toLocaleDateString(lang==='es'?'es-MX':'en-US')}</small></div><b className={row.delta>0?'positive':''}>{signed(row.delta)} pts</b></div>)}</section>}
  </>}
  {screen==='adventures'&&<><div className="title-block"><h1>My Adventures</h1><p>{t('Cada visita verificada deja una huella.','Every verified visit leaves a mark.')}</p></div><section className="grade-card">{gradePill}<Progress value={Math.min(100,state.total/state.target*100)} label={gradeText}/></section>
-  <MissionBoard missions={state.missions||[]} lang={lang} refresh={refresh}/>
+  <MissionBoard missions={state.missions||[]} lang={lang} refresh={refresh} openQr={id=>{setProgramId(id);go('qr');}}/>
   <div className="collection-heading"><h2>{t('Tu vitrina','Your collection')}</h2><span>{unlocked.length} / {state.badges.length}</span></div>
   <div className="medal-filters">
    <select aria-label={t('Colección','Collection')} value={medalGroup} onChange={e=>setMedalGroup(e.target.value)}>
@@ -131,14 +132,16 @@ function App(){
  {offer&&<Sheet close={()=>setOffer(undefined)} lang={lang}><h2>{offer.title}</h2><p>{offer.venue} · {grade(offer.minGrade)}</p><p>{offer.summary}</p><p>{t('Vigente hasta','Available through')} {offer.endDay}</p>{offer.eligible?<><p>{offer.conditions}</p>{offer.website&&<a className="btn secondary" href={offer.website} target="_blank" rel="noreferrer">{t('Ver condiciones oficiales','See official terms')}</a>}</>:<p>{t('Desbloquea este beneficio al alcanzar','Unlock this offer when you reach')} {grade(offer.minGrade)}.</p>}</Sheet>}
  </div>;
 }
-function MissionBoard({missions,lang,refresh}:{missions:Mission[],lang:Lang,refresh:()=>Promise<Data>}){
+function MissionBoard({missions,lang,refresh,openQr}:{missions:Mission[],lang:Lang,refresh:()=>Promise<Data>,openQr:(program:string)=>void}){
  const [expanded,setExpanded]=useState(false);
+ const [openId,setOpenId]=useState<string>();
  const [pending,setPending]=useState(false);
  const [error,setError]=useState('');
  const t=(es:string,en:string)=>choice(lang,[es,en]);
  const active=missions.find(m=>m.active&&!m.complete);
  const completed=missions.filter(m=>m.complete).length;
  const ordered=missions.slice().sort((a,b)=>Number(b.active)-Number(a.active)||Number(b.suggested)-Number(a.suggested));
+ const opened=missions.find(mission=>mission.id===openId);
  if(!missions.length)return null;
  async function select(id:string|null){
   setError('');setPending(true);
@@ -163,14 +166,59 @@ function MissionBoard({missions,lang,refresh}:{missions:Mission[],lang:Lang,refr
      </div>
      <span aria-hidden className="mission-animal" data-mission={m.id}/>
     </div>
-    <Progress value={m.count/m.target*100} label={m.complete?t('Completada','Completed'):`${m.count} / ${m.target}`}/>
-    {!m.complete&&(m.active
-     ?<button className="text-link" disabled={pending} onClick={()=>select(null)}>{t('Quitar del resumen','Unpin')}</button>
-     :<button className="btn secondary" disabled={pending} onClick={()=>select(m.id)}>{m.startedAt?t('Fijar misión','Pin mission'):t('Iniciar misión','Start mission')}</button>)}
+    <Progress value={m.count/m.target*100} label={m.complete?t('Completada','Completed'):`${m.count} / ${m.startedAt?m.target:m.routeSize||m.target}`}/>
+    <button className="btn secondary" onClick={()=>setOpenId(m.id)}>{m.route?.length?t('Ver mi ruta','View my route'):t('Elegir paradas','Choose stops')}</button>
+    {!m.complete&&m.active&&<button className="text-link" disabled={pending} onClick={()=>select(null)}>{t('Quitar del resumen','Unpin')}</button>}
    </article>)}
    {error&&<p role="alert">{error}</p>}
   </div>}
+  {opened&&<MissionRoute key={opened.id} mission={opened} lang={lang} close={()=>setOpenId(undefined)} refresh={refresh} openQr={openQr}/>}
  </section>;
+}
+function MissionRoute({mission,lang,close,refresh,openQr}:{mission:Mission,lang:Lang,close:()=>void,refresh:()=>Promise<Data>,openQr:(program:string)=>void}){
+ const options=mission.options||[], saved=mission.route||[];
+ const key=(place:MissionStop)=>mission.id==='mix-it-up'?place.category:place.id;
+ const suggested=options.filter((place,index)=>options.findIndex(other=>key(other)===key(place))===index).slice(0,mission.routeSize);
+ const [draft,setDraft]=useState(saved.length?saved:suggested);
+ const [changing,setChanging]=useState<number>();
+ const [busy,setBusy]=useState(false);
+ const [error,setError]=useState('');
+ const t=(es:string,en:string)=>choice(lang,[es,en]);
+ const changed=draft.some((place,index)=>place.id!==saved[index]?.id);
+ const places=draft.map(place=>saved.find(stop=>stop.id===place.id)||place);
+ async function update(input:{route?:string[],visit?:string}){
+  setBusy(true);setError('');
+  try{await api('/api/client/missions',{id:mission.id,...input},'PUT');await refresh();}
+  catch(e){setError(alertCopy(lang,e));}finally{setBusy(false);}
+ }
+ return <Sheet close={close} lang={lang}>
+  <span aria-hidden className="mission-animal" data-mission={mission.id}/>
+  <h2>{mission[lang]}</h2>
+  <p>{mission[lang==='es'?'detailEs':'detailEn']}</p>
+  {places.length<mission.routeSize&&<p>{t('Aún faltan lugares para armar esta ruta.','There aren’t enough places for this route yet.')}</p>}
+  <ol className="mission-stops">{places.map((place,index)=>{
+   const choices=options.filter(other=>other.id!==place.id&&!places.some((selected,at)=>at!==index&&key(selected)===key(other)));
+   return <li key={place.id}>
+    <strong>{place.name}</strong><p>{place.address}</p>
+    <a href={'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(place.name+' '+place.address+' Ciudad de México')} target="_blank" rel="noreferrer">{t('Cómo llegar','Directions')}</a>
+    {place.visited?<p>{place.verified?t('Visita validada con QR','Visit verified by QR'):t('Marcada como visitada','Marked as visited')}</p>:<>
+     {place.programId?<p>{place.points} pts {mission.active?t('con tu QR','with your QR'):t('al activar la misión','when you activate the mission')}{place.discount&&<> · {place.discount}</>}{place.perk&&<> · {place.perk}</>}</p>:<p>{place.partner?t('QR no disponible en esta parada','QR unavailable at this stop'):t('Parada por tu cuenta · sin puntos ni descuentos','Self-guided stop · no points or discounts')}</p>}
+     {saved.length&&!changed&&(place.programId
+      ?mission.active&&<button className="text-link" disabled={busy} onClick={()=>openQr(place.programId!)}>{t('Mostrar QR','Show QR')}</button>
+      :!place.partner&&<button className="text-link" disabled={busy} onClick={()=>void update({visit:place.id})}>{t('Marcar visitada','Mark visited')}</button>)}
+     {choices.length>0&&<button className="text-link" disabled={busy} onClick={()=>setChanging(changing===index?undefined:index)}>{t('Cambiar parada','Change stop')}</button>}
+     {changing===index&&<select aria-label={t('Elegir otra parada','Choose another stop')} value="" onChange={e=>{
+      const replacement=choices.find(other=>other.id===e.target.value);
+      if(replacement){setDraft(current=>current.map((stop,at)=>at===index?replacement:stop));setChanging(undefined);}
+     }}><option value="">{t('Elige una alternativa','Choose an alternative')}</option>{choices.map(other=><option value={other.id} key={other.id}>{other.name}</option>)}</select>}
+    </>}
+   </li>;
+  })}</ol>
+  {error&&<p role="alert">{error}</p>}
+  {(changed||!mission.active&&!mission.complete)&&places.length===mission.routeSize&&<button className="btn primary" disabled={busy} onClick={()=>void update({route:draft.map(place=>place.id)})}>
+   {changed?(saved.length?t('Guardar cambios','Save changes'):t('Iniciar misión','Start mission')):t('Activar misión','Activate mission')}
+  </button>}
+ </Sheet>;
 }
 function Sheet({close,lang,children}:{close:()=>void,lang:Lang,children:React.ReactNode}){
  const ref=React.useRef<HTMLDialogElement>(null);

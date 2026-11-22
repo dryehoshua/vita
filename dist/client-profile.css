@@ -1577,3 +1577,9 @@ section p { overflow-wrap:anywhere; }
 .photo-feedback { font-size:.85rem; line-height:1.4; text-align:center; color:var(--wine); }
 .photo-feedback:empty { display:none; }
 .photo-feedback.error { color:#9a2539; }
+
+.mission-stops { list-style:none; text-align:left; padding:0; margin:12px 0; display:grid; gap:8px; width:100%; }
+.mission-stops li { border:1px solid var(--line); background:var(--paper); border-radius:14px; padding:12px; }
+.mission-stops p { margin:3px 0; font-size:.85rem; color:var(--muted); }
+.mission-stops a,.mission-stops .text-link { display:inline-block; margin:5px 10px 0 0; color:var(--wine); font-size:.84rem; }
+.mission-stops select { display:block; margin-top:8px; width:100%; padding:8px; color:var(--ink); background:var(--paper); border:1px solid var(--line); border-radius:8px; font:inherit; }

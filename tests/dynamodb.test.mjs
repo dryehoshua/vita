@@ -255,3 +255,48 @@ test('hosted registration sends the branded OTP through configured delivery',asy
   assert.match(login.cookie,/HttpOnly/);
  }finally{await new Promise(resolve=>listener.close(resolve));}
 });
+
+test('coffee route saves three stops, protects visited stops and applies configured QR benefits',async()=>{
+ const customer=admin,org='route-cafe-fixture',program='route-program-fixture';
+ const owner=await store.get('Users',await uid('alice@example.test')), raw='mission-test-owner-session', hash=digest(raw);
+ await store.put('Sessions',hash,{hash,user_id:owner.id,session_version:owner.session_version,expires:Date.now()+60_000});
+ const staff='vita_session='+raw;
+ await store.put('Organizations',org,{id:org,name:'Café afiliado de prueba'});
+ await store.put('Memberships',org+':'+await uid('alice@example.test'),{user_id:await uid('alice@example.test'),organization_id:org,role:'owner',active:true});
+ await store.put('Documents','route-cafe-document',{id:'route-cafe-document',kind:'business',organization_id:org,publishedActive:true,published:{title:'Café afiliado de prueba',category:'cafe',address:'Dirección de prueba'}});
+ await store.put('Programs',program,{id:program,name:'Café afiliado de prueba',organization_id:org,active:true,version:1,points_per_visit:15,daily_earn_limit:2,mission_discount:'10% en espresso',mission_perk:'Degustación de filtro'});
+ const mission=async()=>{
+  const result=await api('/api/client/profile',undefined,customer,'GET');
+  assert.equal(result.status,200);
+  return result.body.data.missions.find(m=>m.id==='coffee-trail');
+ };
+ const update=values=>api('/api/client/missions',{id:'coffee-trail',...values},customer,'PUT');
+ const {options,routeSize}=await mission();
+ assert.equal(routeSize,3);
+ assert.ok(options.find(item=>item.id===org)?.discount);
+ assert.ok(options.find(item=>item.id==='blend-condesa'&&!item.programId));
+ assert.equal((await update({route:[org,org,'buna-roma']})).status,400);
+ assert.equal((await update({route:[org,'blend-condesa','buna-roma']})).status,200);
+ assert.equal((await update({route:[org,'blend-condesa','chiquitito-condesa']})).status,200);
+ assert.equal((await update({visit:org})).status,400);
+ assert.equal((await update({visit:'blend-condesa'})).status,200);
+ assert.equal((await update({route:[org,'buna-roma','chiquitito-condesa']})).status,409);
+ const issued=await api('/api/loyalty/codes',{program_id:program,kind:'earn'},customer);
+ assert.equal(issued.status,200);
+ const payload={organization_id:org,code:issued.body.data.code,reference:'route-cafe-receipt'};
+ const inspection=await api('/api/loyalty/inspect',payload,staff);
+ assert.equal(inspection.body.data.points,15);
+ assert.equal(inspection.body.data.mission.discount,'10% en espresso');
+ assert.equal(inspection.body.data.mission.perk,'Degustación de filtro');
+ const result=await api('/api/loyalty/validate',payload,staff);
+ assert.equal(result.body.data.delta,15);
+ assert.equal(result.body.data.mission.id,'coffee-trail');
+ assert.deepEqual((await api('/api/loyalty/validate',payload,staff)).body.data,result.body.data);
+ const active=await mission();
+ assert.equal(active.count,2);
+ assert.equal(active.target,3);
+ assert.equal(active.route.find(stop=>stop.id===org).verified,true);
+ assert.equal((await update({route:['buna-roma','blend-condesa','chiquitito-condesa']})).status,409);
+ const again=await api('/api/loyalty/codes',{program_id:program,kind:'earn'},customer);
+ assert.equal((await api('/api/loyalty/inspect',{...payload,code:again.body.data.code},staff)).body.data.mission,null);
+});

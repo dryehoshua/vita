@@ -1,3 +1,4 @@
+import {listMissionStops} from './mission-stops.mjs';
 import {missionProgress,mountMissions} from './neighborhood-missions.mjs';
 import {welcomeOffer,claimWelcome} from './welcome.mjs';
 import {awardBadges} from './adventure-badges.mjs';
@@ -31,9 +32,9 @@ function summary(visits,now){
  ].map(r=>({...r,complete:r.count>=r.target,month}));
  return {total,categories,grade:gradeNames[grade],nextGrade:gradeNames[grade+1]||null,target,badges,challenges};
 }
-async function getVisits(store,id,ledger){
+async function getVisits(store,id,ledger,docs){
  const operations=await Promise.all(ledger.filter(row=>row.delta>0&&!row.type&&row.id&&!String(row.reference||'').startsWith('reverse:')).map(row=>store.get('Operations',row.id)));
- const documents=(await store.list('Documents')).filter(row=>row.kind==='business'&&row.publishedActive);
+ const documents=docs.filter(row=>row.kind==='business'&&row.publishedActive);
  return operations.filter(row=>row?.user_id===id&&row.kind==='earn'&&!row.reversed&&row.created_at)
   .map(row=>{
    const doc=documents.find(d=>d.organization_id===row.organization_id)?.published;
@@ -50,15 +51,14 @@ export function mountAdventures(app,{store,authenticated}){
  });
  app.get('/api/client/profile',authenticated,async(req,res)=>{
   const id=req.user.id;
-  const [profile,ledger,wallets,programs,rewards,missionRecord]=await Promise.all([
-   store.get('Profiles',id),store.list('Ledger#'+id),store.list('Wallets#'+id),store.list('Programs'),store.list('Rewards'),store.get('NeighborhoodMissions',id),
+  const [profile,ledger,wallets,programs,rewards,missionRecord,docs]=await Promise.all([
+   store.get('Profiles',id),store.list('Ledger#'+id),store.list('Wallets#'+id),store.list('Programs'),store.list('Rewards'),store.get('NeighborhoodMissions',id),store.list('Documents'),
   ]);
-  const visits=await getVisits(store,id,ledger);
+  const visits=await getVisits(store,id,ledger,docs);
   const places=summary(visits,new Date());
-  const missions=missionProgress(visits,missionRecord,profile.interests||[]);
+  const missions=missionProgress(visits,missionRecord,profile.interests||[],listMissionStops(docs,programs));
   const grade=gradeNames.indexOf(places.grade);
   const day=formatDay.format(new Date());
-  const docs=await store.list('Documents');
   const offers=docs.filter(d=>d.kind==='promotion'&&d.publishedActive&&gradeNames.includes(d.published?.minGrade))
    .filter(d=>d.published.day<=day&&day<=d.published.endDay)
    .map(d=>({id:d.id,...d.published,eligible:grade>=gradeNames.indexOf(d.published.minGrade)}))
