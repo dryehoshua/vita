@@ -280,6 +280,9 @@ test('coffee route saves three stops, protects visited stops and applies configu
  assert.equal((await update({route:[org,'blend-condesa','chiquitito-condesa']})).status,200);
  assert.equal((await update({visit:org})).status,400);
  assert.equal((await update({visit:'blend-condesa'})).status,200);
+ assert.equal((await update({visit:'blend-condesa'})).status,200);
+ assert.equal((await mission()).demoPoints,15);
+ assert.equal(await store.get('Wallets#'+await uid('support@roma-condesa.app'),program),null);
  assert.equal((await update({route:[org,'buna-roma','chiquitito-condesa']})).status,409);
  const issued=await api('/api/loyalty/codes',{program_id:program,kind:'earn'},customer);
  assert.equal(issued.status,200);

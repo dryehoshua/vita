@@ -1,3 +1,4 @@
+import {coffeeMissionDemo,missionVenues} from '../../dist/mission-venues.js';
 import React,{useEffect,useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import QRCode from 'qrcode';
@@ -18,7 +19,7 @@ type Data={
  challenges:{id:string,es:string,en:string,count:number,target:number,complete:boolean,month:string,interests:string[]}[],offers:Offer[],missions?:Mission[],
 };
 type MissionStop={id:string,name:string,address:string,website?:string,category:string,programId?:string,points?:number,discount?:string,perk?:string,partner?:boolean,visited?:boolean,verified?:boolean};
-type Mission={id:string,es:string,en:string,detailEs:string,detailEn:string,count:number,target:number,complete:boolean,active:boolean,startedAt:string|null,suggested:boolean,routeSize:number,route:MissionStop[],options:MissionStop[]};
+type Mission={id:string,es:string,en:string,detailEs:string,detailEn:string,count:number,target:number,complete:boolean,active:boolean,startedAt:string|null,suggested:boolean,routeSize:number,demoPoints?:number,route:MissionStop[],options:MissionStop[]};
 type Receipt={amount:number,fee:number,balance:number,recipient:string,reference:string};
 const grades:Record<string,[string,string]>={explorer:['Explorador','Explorer'],regular:['Rostro conocido','Local Favorite'],insider:['Insider','Insider'],legend:['Leyenda del barrio','Neighborhood Legend']};
 const activities:Record<string,[string,string]>={food:['Comida','Food'],coffee:['Café','Coffee'],music:['Música','Music'],art:['Arte y cultura','Art & culture'],nightlife:['Vida nocturna','Nightlife'],walks:['Paseos','Walks'],wellness:['Bienestar','Wellness']};
@@ -186,6 +187,7 @@ function MissionRoute({mission,lang,close,refresh,openQr}:{mission:Mission,lang:
  const t=(es:string,en:string)=>choice(lang,[es,en]);
  const changed=draft.some((place,index)=>place.id!==saved[index]?.id);
  const places=draft.map(place=>saved.find(stop=>stop.id===place.id)||place);
+ const isDemo=(place:MissionStop)=>mission.id==='coffee-trail'&&!place.programId&&missionVenues.some(venue=>venue.id===place.id&&venue.coffee);
  async function update(input:{route?:string[],visit?:string}){
   setBusy(true);setError('');
   try{await api('/api/client/missions',{id:mission.id,...input},'PUT');await refresh();}
@@ -195,14 +197,19 @@ function MissionRoute({mission,lang,close,refresh,openQr}:{mission:Mission,lang:
   <span aria-hidden className="mission-animal" data-mission={mission.id}/>
   <h2>{mission[lang]}</h2>
   <p>{mission[lang==='es'?'detailEs':'detailEn']}</p>
+  {places.some(isDemo)&&<p className="mission-demo-note">{t('Puntos demo de esta ruta','Demo points for this route')} <strong>{mission.demoPoints||0}</strong></p>}
   {places.length<mission.routeSize&&<p>{t('Aún faltan lugares para armar esta ruta.','There aren’t enough places for this route yet.')}</p>}
   <ol className="mission-stops">{places.map((place,index)=>{
    const choices=options.filter(other=>other.id!==place.id&&!places.some((selected,at)=>at!==index&&key(selected)===key(other)));
    return <li key={place.id}>
     <strong>{place.name}</strong><p>{place.address}</p>
     <a href={'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(place.name+' '+place.address+' Ciudad de México')} target="_blank" rel="noreferrer">{t('Cómo llegar','Directions')}</a>
+    {isDemo(place)&&<div className="mission-demo">
+     <strong>{t('Demo · No canjeable','Demo · Not redeemable')}</strong>
+     <p>{coffeeMissionDemo.discount[lang]} · {coffeeMissionDemo.perk[lang]} · {coffeeMissionDemo.points} {t('pts demo','demo pts')}</p>
+    </div>}
     {place.visited?<p>{place.verified?t('Visita validada con QR','Visit verified by QR'):t('Marcada como visitada','Marked as visited')}</p>:<>
-     {place.programId?<p>{place.points} pts {mission.active?t('con tu QR','with your QR'):t('al activar la misión','when you activate the mission')}{place.discount&&<> · {place.discount}</>}{place.perk&&<> · {place.perk}</>}</p>:<p>{place.partner?t('QR no disponible en esta parada','QR unavailable at this stop'):t('Parada por tu cuenta · sin puntos ni descuentos','Self-guided stop · no points or discounts')}</p>}
+     {place.programId?<p>{place.points} pts {mission.active?t('con tu QR','with your QR'):t('al activar la misión','when you activate the mission')}{place.discount&&<> · {place.discount}</>}{place.perk&&<> · {place.perk}</>}</p>:!isDemo(place)&&<p>{place.partner?t('QR no disponible en esta parada','QR unavailable at this stop'):t('Parada por tu cuenta · sin puntos ni descuentos','Self-guided stop · no points or discounts')}</p>}
      {saved.length&&!changed&&(place.programId
       ?mission.active&&<button className="text-link" disabled={busy} onClick={()=>openQr(place.programId!)}>{t('Mostrar QR','Show QR')}</button>
       :!place.partner&&<button className="text-link" disabled={busy} onClick={()=>void update({visit:place.id})}>{t('Marcar visitada','Mark visited')}</button>)}

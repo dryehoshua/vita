@@ -1,3 +1,9 @@
+export const coffeeMissionDemo={
+ points:15,
+ discount:{es:'10% en una bebida',en:'10% off one drink'},
+ perk:{es:'Mini degustación de café',en:'Mini coffee tasting'},
+};
+
 export const missionVenues = [
  ['blend-condesa','Blend Station · Condesa','Ámsterdam 282, Condesa','https://blendstation.com.mx/pages/sucursales','cafe'],
  ['chiquitito-condesa','Chiquitito Café · Condesa','Alfonso Reyes 232 E, Hipódromo Condesa','https://chiquititocafe.com/','cafe'],

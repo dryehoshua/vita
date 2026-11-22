@@ -1583,3 +1583,6 @@ section p { overflow-wrap:anywhere; }
 .mission-stops p { margin:3px 0; font-size:.85rem; color:var(--muted); }
 .mission-stops a,.mission-stops .text-link { display:inline-block; margin:5px 10px 0 0; color:var(--wine); font-size:.84rem; }
 .mission-stops select { display:block; margin-top:8px; width:100%; padding:8px; color:var(--ink); background:var(--paper); border:1px solid var(--line); border-radius:8px; font:inherit; }
+
+.mission-demo { margin-top:8px; padding:8px; border-radius:8px; background:#f4e8e9; color:var(--wine); font-size:.84rem; }
+.mission-demo p,.mission-demo-note { color:var(--wine); }

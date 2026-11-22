@@ -1,3 +1,4 @@
+import {coffeeMissionDemo,missionVenues} from '../../dist/mission-venues.js';
 import {availableMissionStops,eligibleMissionStop,routeSize,stopForRoute,validMissionRoute} from './mission-stops.mjs';
 
 const catalog=[
@@ -34,7 +35,8 @@ export function missionProgress(visits,record,interests,options=[]){
    count=Math.min(new Set(steps).size,target);
   }
   return {...mission,target,routeSize:routeSize(mission.id),startedAt,count,complete:count===target,active:record?.active===mission.id,
-   route:places,options:stops,suggested:tags.some(tag=>interests.includes(tag))};
+   route:places,options:stops,demoPoints:mission.id==='coffee-trail'?places.filter(place=>place.visited&&!place.verified&&missionVenues.some(venue=>venue.id===place.id&&venue.coffee)).length*coffeeMissionDemo.points:0,
+   suggested:tags.some(tag=>interests.includes(tag))};
  });
 }
 
