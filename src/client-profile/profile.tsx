@@ -209,7 +209,7 @@ function Preferences({lang,profile,close,tour}:{lang:Lang,profile:Data['profile'
  async function selectPhoto(file:File){
   setBusy(true);setError('');
   try{setPhoto(await encodeAvatar(file));}
-  catch{setError(t('Elige una imagen JPG, PNG o WebP de hasta 5 MB.','Choose a JPG, PNG or WebP image up to 5 MB.'));}
+  catch{setError(t('No pudimos procesar la foto. Prueba con un archivo JPG, PNG o WebP que se abra en tu dispositivo.','We couldn’t process the photo. Try a JPG, PNG or WebP file that opens on your device.'));}
   finally{setBusy(false);}
  }
  async function next(){

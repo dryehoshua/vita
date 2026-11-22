@@ -5,6 +5,7 @@ import {build} from 'esbuild';
 import {readFile,mkdtemp,writeFile,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
+import {encodeAvatar} from '../src/accounts/avatar.js';
 const html=await readFile('dist/cuenta.html','utf8');
 let current,store,calls;
 function mockClient(){
@@ -22,6 +23,40 @@ async function mount(enabled=false,loggedIn=false){
  await import(file);await rm(dir,{recursive:true});return dom;
 }
 const tick=()=>new Promise(r=>setTimeout(r,20));
+
+test('avatar conversion accepts files larger than 5 MB and large pixel dimensions',async t=>{
+ const dom=new JSDOM();
+ const previousDocument=globalThis.document;
+ const previousDecoder=globalThis.createImageBitmap;
+ globalThis.document=dom.window.document;
+ t.after(()=>{
+  globalThis.document=previousDocument;
+  globalThis.createImageBitmap=previousDecoder;
+  dom.window.close();
+ });
+ const source=new File([new Uint8Array(12*1024*1024)],'original.jpg',{type:'image/jpeg'});
+ const close=t.mock.fn();
+ const drawImage=t.mock.fn();
+ const bitmap={width:10000,height:8000,close};
+ globalThis.createImageBitmap=async file=>{
+  assert.equal(file,source);
+  return bitmap;
+ };
+ const canvas=dom.window.HTMLCanvasElement.prototype;
+ t.mock.method(canvas,'getContext',()=>({drawImage}));
+ t.mock.method(canvas,'toBlob',function(done,type,quality){
+  assert.equal(this.width,512);
+  assert.equal(this.height,512);
+  assert.equal(type,'image/webp');
+  assert.equal(quality,.85);
+  done(new Blob(['compressed'],{type}));
+ });
+ const avatar=await encodeAvatar(source);
+ assert.equal(avatar.type,'image/webp');
+ assert.ok(avatar.size<5*1024*1024);
+ assert.deepEqual(drawImage.mock.calls[0].arguments,[bitmap,1000,0,8000,8000,0,0,512,512]);
+ assert.equal(close.mock.callCount(),1);
+});
 test('unconfigured page fails closed and offers both languages',async()=>{await mount();assert.equal(document.querySelector('fieldset').disabled,true);assert.match(document.body.textContent,/Servidor local no conectado/);document.querySelector('#account-language').value='en';document.querySelector('#account-language').dispatchEvent(new document.defaultView.Event('change'));await tick();assert.match(document.body.textContent,/Local server not connected/);});
 test('signup asks for account type and excludes privileged roles',async()=>{await mount(true);document.querySelector('[data-action=signup]').click();await tick();assert.equal(document.querySelector('[name=role]'),null);assert.equal(document.querySelector('[name=password]').minLength,12);const f=document.querySelector('#auth-form');assert.deepEqual([...f.elements.registration_type.options].map(o=>o.value),['','visitor','business','guide','writer']);f.elements.registration_type.value='visitor';f.elements.name.value='Ana';f.elements.email.value='ana@example.test';f.elements.password.value='long-test-password';f.dispatchEvent(new document.defaultView.Event('submit',{cancelable:true}));await tick();assert.deepEqual(calls[0][1].options.data,{display_name:'Ana',registration:{type:'visitor'}});const verify=document.querySelector('#auth-form');assert.equal(verify.elements.email.value,'ana@example.test');assert.equal(verify.elements.code.autocomplete,'one-time-code');verify.elements.code.value='123456';verify.dispatchEvent(new document.defaultView.Event('submit',{cancelable:true}));await tick();assert.equal(calls[1][0],'verify');assert.equal(calls[1][1].code,'123456');assert.match(document.querySelector('#notice').textContent,/El código no coincide/);});
 test('login displays actual profile and zero points, no demo balance',async()=>{await mount(true);const f=document.querySelector('#auth-form');f.elements.email.value='ana@example.test';f.elements.password.value='long-test-password';f.dispatchEvent(new document.defaultView.Event('submit',{cancelable:true}));await tick();assert.ok(document.querySelector('#profile-form'));assert.equal(document.querySelector('#profile-form [name=name]').value,'Ana');assert.match(document.querySelector('.metric').textContent,/0/);assert.doesNotMatch(document.body.textContent,/1,250|Sofía/);assert.equal(document.querySelector('[data-action=admin]'),null);});

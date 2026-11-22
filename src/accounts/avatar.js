@@ -1,10 +1,9 @@
 export const avatarTypes = ['image/jpeg','image/png','image/webp'];
 
 export async function encodeAvatar(file) {
- if(!avatarTypes.includes(file?.type)||file.size>5*1024*1024)throw Error('Invalid photo');
+ if(!avatarTypes.includes(file?.type))throw Error('Invalid photo');
  const bitmap=await createImageBitmap(file);
  try{
-  if(bitmap.width*bitmap.height>40000000)throw Error('Photo too large');
   const canvas=document.createElement('canvas');
   canvas.width=canvas.height=512;
   const side=Math.min(bitmap.width,bitmap.height);
