@@ -24,6 +24,6 @@ Crear un administrador local con `node scripts/local-operator.mjs admin correo@e
 
 ## Habilitar registro público con correo
 
-La pantalla publicada muestra las pestañas **Regístrate** y **Login**. La primera habilita el formulario cuando el servicio tiene configurado el remitente. Crear el buzón `noreply@roma-condesa.app` en IONOS y ejecutar `scripts/configure-transactional-mail.command` en el Mac. El script pide la contraseña sin mostrarla, comprueba la conexión segura a IONOS y guarda el acceso fuera del repositorio.
+La pantalla publicada muestra las pestañas **Regístrate** y **Login**. La primera habilita el formulario cuando el servicio tiene configurado el remitente. Crear el buzón `noreply@roma-condesa.app` en Hostinger Mail y ejecutar `scripts/configure-transactional-mail.command` en el Mac. El script pide la contraseña sin mostrarla, comprueba la conexión segura al servidor de correo de Hostinger y guarda el acceso fuera del repositorio.
 
 Después de configurar, reiniciar `app.roma-condesa.vita.backend`, comprobar la opción de registro y realizar un alta con un correo autorizado de prueba. El código de seis dígitos se entrega por correo desde La Vita; el buzón de desarrollo queda restringido al acceso local.

@@ -9,7 +9,7 @@ for await(const chunk of process.stdin)chunks.push(chunk);
 const password=Buffer.concat(chunks).toString('utf8').replace(/\r?\n$/,'');
 if(!password)throw Error('Falta la contraseña del buzón.');
 const config={
- SMTP_HOST:'smtp.ionos.com',
+ SMTP_HOST:'smtp.hostinger.com',
  SMTP_PORT:465,
  SMTP_USER:'noreply@roma-condesa.app',
  SMTP_PASSWORD:password,
@@ -17,7 +17,7 @@ const config={
 };
 try{await createDelivery(config).verify();}
 catch{
- console.error('IONOS no aceptó la conexión del buzón. No se guardó ningún cambio.');
+ console.error('Hostinger no aceptó la conexión del buzón. No se guardó ningún cambio.');
  process.exit(1);
 }
 const dir=join(homedir(),'Library','Application Support','La Vita Runtime','.local-data');
@@ -27,4 +27,4 @@ const temporary=path+'.'+randomUUID()+'.tmp';
 await writeFile(temporary,JSON.stringify(config),{mode:0o600,flag:'wx'});
 await chmod(temporary,0o600);
 await rename(temporary,path);
-console.log('Autenticación SMTP de IONOS comprobada. Configuración guardada en el Mac.');
+console.log('Autenticación SMTP de Hostinger comprobada. Configuración guardada en el Mac.');
