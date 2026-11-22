@@ -138,3 +138,23 @@ test('mission progress counts only visits after starting and distinguishes place
  assert.equal(next.find(m=>m.id==='mix-it-up').complete,true);
  assert.equal(next.find(m=>m.id==='mix-it-up').active,false);
 });
+
+test('registration type requests business access only after OTP and never grants privilege',async()=>{
+ const email='new-hotel@example.test';
+ assert.equal((await api('/api/auth/signup',{name:'Host',email,password,registration:{type:'admin'}})).status,400);
+ const registration={type:'business',businessType:'stay',businessName:'Hotel de prueba'};
+ assert.equal((await api('/api/auth/signup',{name:'Host',email,password,registration})).status,200);
+ const id=await uid(email);
+ assert.ok(!(await store.list('Requests')).some(item=>item.user_id===id));
+ const {code}=readdirSync(join(dir,'mail')).map(f=>JSON.parse(readFileSync(join(dir,'mail',f)))).find(m=>m.to===email);
+ const verified=await api('/api/auth/verify-code',{email,code,password,registration});
+ assert.equal(verified.status,200);
+ assert.equal(verified.body.pending,true);
+ const request=(await store.list('Requests')).find(item=>item.user_id===id);
+ assert.equal(request.status,'pending');
+ assert.equal(request.business_type,'stay');
+ assert.deepEqual((await store.get('Users',id)).roles,[]);
+ assert.ok(!(await store.list('Memberships')).some(item=>item.user_id===id));
+ assert.equal((await api('/api/rpc',{name:'decide_request',args:{request_id:request.id,approve:true}},admin)).status,200);
+ assert.ok((await store.list('Organizations')).some(org=>org.name===registration.businessName&&org.business_type==='stay'));
+});

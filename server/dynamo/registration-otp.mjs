@@ -1,3 +1,4 @@
+import {requestRegistrationAccess} from './registration-intent.mjs';
 import {randomInt,randomBytes,createHmac,timingSafeEqual} from 'node:crypto';
 import {readFileSync,writeFileSync} from 'node:fs';
 import {join} from 'node:path';
@@ -29,7 +30,7 @@ export function registrationOtp(store,directory){
    return code;
   });
  }
- async function verify(userId,code,passwordHash){
+ async function verify(userId,code,passwordHash,intent){
   if(!userId||typeof code!=='string'||!/^\d{6}$/.test(code))throw invalid();
   const verified=await store.transaction(async tx=>{
    const record=await tx.get('RegistrationCodes',userId);
@@ -38,11 +39,14 @@ export function registrationOtp(store,directory){
    if(!timingSafeEqual(sign(userId,record.salt,code),Buffer.from(record.hash,'hex'))){
     await tx.put('RegistrationCodes',userId,{...record,failures:record.failures+1});return false;
    }
-   await tx.put('Users',userId,{...user,password:passwordHash,verified:true});
+   const {registrationIntent,...account}=user;
+   const pending=await requestRegistrationAccess(tx,user,intent||registrationIntent);
+   await tx.put('Users',userId,{...account,password:passwordHash,verified:true});
    await tx.remove('RegistrationCodes',userId);
-   return true;
+   return {pending};
   });
   if(!verified)throw invalid();
+  return verified;
  }
  return {issue,verify};
 }

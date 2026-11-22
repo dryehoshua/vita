@@ -8,7 +8,7 @@ export function createClient(){
   onAuthStateChange(fn){listeners.add(fn);return {data:{subscription:{unsubscribe:()=>listeners.delete(fn)}}};},
   getUser:()=>request('/auth/me',null,'GET'),
   async getSession(){const r=await auth.getUser();return {data:{session:r.data?.user?{user:r.data.user}:null},error:r.error};},
-  signUp:({email,password,options})=>request('/auth/signup',{email,password,name:options.data.display_name}),
+  signUp:({email,password,options})=>request('/auth/signup',{email,password,name:options.data.display_name,registration:options.data.registration}),
   verifyRegistrationCode:body=>request('/auth/verify-code',body),
   resendRegistrationCode:email=>request('/auth/resend-code',{email}),
   signInWithPassword:body=>request('/auth/login',body),
