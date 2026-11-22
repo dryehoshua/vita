@@ -23,7 +23,6 @@ function authView(){
  const action=verify?t('Verificar código','Verify code'):signup?t('Crear cuenta','Sign up'):reset?t('Enviar enlace','Send link'):recovery?t('Guardar contraseña','Save password'):t('Entrar','Sign in');
  app.innerHTML=`<section class="panel auth"><h1>${title}</h1><p class="muted">${info}</p>
  ${!client?`<p class="badge">${t('Servidor local no conectado','Local server not connected')}</p>`:''}
- ${!recovery&&!verify?`<div class="tabs">${button(t('Entrar','Sign in'),'login',view==='login'?'aria-current="page"':'')}${config.registrationEnabled===false?'':button(t('Crear cuenta','Sign up'),'signup',signup?'aria-current="page"':'')}</div>`:''}
  <form id="auth-form"><fieldset ${!client?'disabled':''}>
  ${signup?input('name',t('Nombre','Name'),'text','required maxlength="60" autocomplete="given-name"'):''}
  ${!recovery?input('email',t('Correo','Email'),'email','required autocomplete="email" maxlength="254" value="'+esc(verificationEmail)+'"'):''}
@@ -32,8 +31,9 @@ function authView(){
  ${signup||recovery?`<small>${t('Mínimo 12 caracteres.','At least 12 characters.')}</small>`:''}
  <button class="primary">${action}</button></fieldset></form>
  ${verify?`<p>${mailLink}</p>${button(t('Reenviar código','Resend code'),'resend-otp')} ${button(t('Volver a entrar','Back to sign in'),'login')}`:''}
- ${!signup&&!reset&&!verify&&!recovery&&config.registrationEnabled!==false?button(t('Olvidé mi contraseña','Forgot password'),'reset'):''}
- ${view==='login'&&config.registrationEnabled===false?`<p class="muted">${t('Piloto privado. Entra con una cuenta de prueba verificada.','Private pilot. Sign in with a verified test account.')}</p>`:''}
+ ${view==='login'&&!recovery&&config.registrationEnabled!==false?`<div class="auth-alternatives">${button(t('Crear cuenta','Create an account'),'signup')} ${button(t('Olvidé mi contraseña','Forgot password'),'reset')}</div>`:''}
+ ${(signup||reset)&&!recovery?`<div class="auth-alternatives">${button(t('Volver al inicio de sesión','Back to sign in'),'login')}</div>`:''}
+ ${view==='login'&&!recovery&&config.registrationEnabled===false?`<div class="auth-pilot"><strong>${t('¿Todavía no tienes cuenta?','Don’t have an account yet?')}</strong><p class="muted">${t('Por ahora, el registro y el código de verificación están disponibles en el Mac del piloto. Una vez verificada tu cuenta, puedes entrar aquí.','For now, sign-up and verification codes are available on the pilot Mac. Once your account is verified, you can sign in here.')}</p></div>`:''}
  ${reset&&mailLink?`<p>${mailLink}</p>`:''}</section>`;
  $('#auth-form').onsubmit=e=>run(e,async()=>{
   const f=new FormData(e.target),email=String(f.get('email')||'').trim(),password=String(f.get('password')||'');
