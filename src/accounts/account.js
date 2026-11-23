@@ -2,7 +2,7 @@ import {avatarPreview,avatarAccept,encodeAvatar,photoFeedback,saveAvatar} from '
 import {createClient} from './local-client.js';
 import {safePath,escapeHTML as esc,validConfig,totals,spaces} from './core.js';
 // Loaded at runtime so deployment configuration never requires rebuilding vendor code.
-const {accountConfig:config}=await import('/account-config.js');
+const {accountConfig:config={}}=await import('/account-config.js').catch(()=>({}));
 const $=s=>document.querySelector(s),app=$('#account-app');
 let lang='es';try{lang=sessionStorage.getItem('lavita-language')==='en'?'en':'es';}catch{}
 const t=(es,en)=>lang==='en'?en:es;

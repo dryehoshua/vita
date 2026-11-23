@@ -1,6 +1,7 @@
 const measuredPages = new Set(['/','/cuenta','/perfil','/panel','/guias','/alojamientos','/ahora','/socialite']);
 const noCache = {'Cache-Control':'no-store'};
 const unavailable = () => Response.json({error:'Pilot backend unavailable'},{status:503,headers:noCache});
+const offlineConfig = () => new Response('export const accountConfig={enabled:false};',{headers:{...noCache,'Content-Type':'text/javascript; charset=utf-8'}});
 const notFound = () => new Response('Not found',{status:404});
 
 function upstream(env, path) {
@@ -31,9 +32,10 @@ export default {
     }
     if (path.startsWith('/dev/') || path.startsWith('/api/internal/')) return notFound();
     if (path.startsWith('/api/') || path === '/account-config.js' || path === '/privacidad-local') {
+      const failed = path === '/account-config.js' ? offlineConfig : unavailable;
       // Assign pathname rather than treating caller-controlled input as a URL.
       const target = upstream(env, '/');
-      if (!target) return unavailable();
+      if (!target) return failed();
       target.pathname = path;
       target.search = url.search;
       const headers = new Headers(request.headers);
@@ -41,13 +43,14 @@ export default {
       headers.delete('x-vita-event');
       try {
         const response = await fetch(new Request(target,{method:request.method,headers,
+          ...(path==='/account-config.js'?{signal:AbortSignal.timeout(4000)}:{}),
           body:['GET','HEAD'].includes(request.method)?undefined:request.body,redirect:'manual'}));
-        if (response.status >= 502) return unavailable();
+        if (response.status >= 502 || path==='/account-config.js'&&(!response.ok||!response.headers.get('Content-Type')?.includes('javascript')))return failed();
         const out = new Response(response.body,response);
         out.headers.set('Cache-Control','no-store');
         return out;
       } catch {
-        return unavailable();
+        return failed();
       }
     }
     const response = await env.ASSETS.fetch(request);

@@ -1,5 +1,5 @@
 import {validConfig,totals} from './core.js';
-const {accountConfig:config}=await import('/account-config.js');
+const {accountConfig:config}=await import('/account-config.js').catch(()=>({}));
 export const accountsEnabled=validConfig(config);
 let member=null,failed=false;
 const english=()=>document.documentElement.lang==='en';
